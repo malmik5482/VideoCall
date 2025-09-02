@@ -1,44 +1,53 @@
 <!doctype html>
 <html lang="ru">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Видеозвонок 1‑к‑1</title>
-    <link rel="stylesheet" href="style.css" />
-  </head>
-  <body>
-    <header>
-      <div class="left">
-        <h1>Видеозвонок 1‑к‑1</h1>
-        <div class="controls">
-          <input id="room" placeholder="код комнаты" />
-          <button id="joinBtn">Подключиться</button>
-          <button id="leaveBtn" class="danger" disabled>Отключиться</button>
-        </div>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Видео‑мессенджер</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="bar">
+    <div class="left">
+      <h1>Видео‑мессенджер</h1>
+      <div class="row">
+        <input id="myPhone" placeholder="Ваш номер телефона" />
+        <input id="myName"  placeholder="Ваше имя" />
+        <button id="registerBtn">Сохранить профиль</button>
       </div>
-      <div class="right">
-        <button id="qualityHD">HD</button>
-        <button id="qualityLite">Эконом</button>
-        <button id="refreshHistory">История</button>
+      <div class="small" id="meInfo"></div>
+    </div>
+    <div class="right">
+      <div class="row">
+        <input id="searchPhone" placeholder="Найти по номеру..." />
+        <button id="searchBtn">Поиск</button>
       </div>
-    </header>
+      <div id="results"></div>
+    </div>
+  </header>
 
-    <main class="layout">
-      <section class="videos">
-        <video id="localVideo" playsinline muted autoplay></video>
-        <video id="remoteVideo" playsinline autoplay></video>
-      </section>
-      <aside class="side">
-        <h3>История звонков</h3>
-        <div id="historyList" class="history"></div>
-      </aside>
-    </main>
+  <main class="layout">
+    <section class="videos">
+      <video id="localVideo" playsinline muted autoplay></video>
+      <video id="remoteVideo" playsinline autoplay></video>
+    </section>
+    <aside class="side">
+      <h3>Комната</h3>
+      <div class="row">
+        <input id="room" placeholder="код комнаты (не обязательно)" />
+        <button id="joinBtn">Подключиться</button>
+        <button id="leaveBtn" class="danger" disabled>Отключиться</button>
+      </div>
+      <h3>История звонков</h3>
+      <div id="historyList" class="history"></div>
+    </aside>
+  </main>
 
-    <footer class="footer">
-      <input id="chatInput" placeholder="Сообщение" />
-      <button id="sendBtn">Отправить</button>
-    </footer>
+  <footer class="footer">
+    <input id="chatInput" placeholder="Сообщение" />
+    <button id="sendBtn">Отправить</button>
+  </footer>
 
-    <script src="app.js"></script>
-  </body>
+  <script src="app.js"></script>
+</body>
 </html>
