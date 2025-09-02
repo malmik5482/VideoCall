@@ -1,30 +1,44 @@
 <!doctype html>
 <html lang="ru">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Видеозвонок 1‑к‑1</title>
-  <link rel="stylesheet" href="style.css" />
-</head>
-<body>
-  <header>
-    <h1>Видеозвонок 1‑к‑1</h1>
-    <div class="controls">
-      <input id="room" placeholder="код комнаты" />
-      <button id="joinBtn">Подключиться</button>
-    </div>
-  </header>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Видеозвонок 1‑к‑1</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <header>
+      <div class="left">
+        <h1>Видеозвонок 1‑к‑1</h1>
+        <div class="controls">
+          <input id="room" placeholder="код комнаты" />
+          <button id="joinBtn">Подключиться</button>
+          <button id="leaveBtn" class="danger" disabled>Отключиться</button>
+        </div>
+      </div>
+      <div class="right">
+        <button id="qualityHD">HD</button>
+        <button id="qualityLite">Эконом</button>
+        <button id="refreshHistory">История</button>
+      </div>
+    </header>
 
-  <main class="videos">
-    <video id="localVideo" playsinline muted autoplay></video>
-    <video id="remoteVideo" playsinline autoplay></video>
-  </main>
+    <main class="layout">
+      <section class="videos">
+        <video id="localVideo" playsinline muted autoplay></video>
+        <video id="remoteVideo" playsinline autoplay></video>
+      </section>
+      <aside class="side">
+        <h3>История звонков</h3>
+        <div id="historyList" class="history"></div>
+      </aside>
+    </main>
 
-  <footer class="footer">
-    <input id="chatInput" placeholder="Сообщение" />
-    <button id="sendBtn">Отправить</button>
-  </footer>
+    <footer class="footer">
+      <input id="chatInput" placeholder="Сообщение" />
+      <button id="sendBtn">Отправить</button>
+    </footer>
 
-  <script src="app.js"></script>
-</body>
+    <script src="app.js"></script>
+  </body>
 </html>
