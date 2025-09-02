@@ -1,7 +1,6 @@
-// ==== Регистрация по телефону, поиск и звонки ====
-// + WebRTC звонки, + история, + join/leave, + улучшенное качество
+// ==== Регистрация по телефону, поиск, звонки, история, join/leave ====
+// + WebRTC с высоким качеством и автоадаптацией под сеть
 
-// Polyfill
 if (!navigator.mediaDevices) navigator.mediaDevices = {};
 if (!navigator.mediaDevices.getUserMedia) {
   navigator.mediaDevices.getUserMedia = function (constraints) {
@@ -11,42 +10,22 @@ if (!navigator.mediaDevices.getUserMedia) {
   };
 }
 if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
-  console.warn('Use HTTPS to access camera/mic.');
+  console.warn('Для доступа к камере/микрофону нужен HTTPS.');
 }
 
 const TARGETS = {
-  video: {
-    width: { ideal: 1920, max: 3840 },
-    height:{ ideal: 1080, max: 2160 },
-    frameRate: { ideal: 60, max: 60 }
-  },
-  audio: {
-    echoCancellation: true,
-    noiseSuppression: true,
-    autoGainControl: false
-  },
-  startVideoBitrate: 3_000_000,
-  maxVideoBitrate:   8_000_000,
-  minVideoBitrate:     600_000,
-  audioBitrate:        128_000
+  video: { width:{ ideal:1920, max:3840 }, height:{ ideal:1080, max:2160 }, frameRate:{ ideal:60, max:60 } },
+  audio: { echoCancellation:true, noiseSuppression:true, autoGainControl:false },
+  startVideoBitrate: 3_000_000, maxVideoBitrate: 8_000_000, minVideoBitrate: 600_000, audioBitrate:128_000
 };
 
 const $ = (s)=>document.querySelector(s);
 const els = {
-  myPhone: $('#myPhone'),
-  myName: $('#myName'),
-  registerBtn: $('#registerBtn'),
-  meInfo: $('#meInfo'),
-  searchPhone: $('#searchPhone'),
-  searchBtn: $('#searchBtn'),
-  results: $('#results'),
-  room: $('#room'),
-  joinBtn: $('#joinBtn'),
-  leaveBtn: $('#leaveBtn'),
-  localVideo: $('#localVideo'),
-  remoteVideo: $('#remoteVideo'),
-  chatInput: $('#chatInput'),
-  sendBtn: $('#sendBtn'),
+  myPhone: $('#myPhone'), myName: $('#myName'), registerBtn: $('#registerBtn'), meInfo: $('#meInfo'),
+  searchPhone: $('#searchPhone'), searchBtn: $('#searchBtn'), results: $('#results'),
+  room: $('#room'), joinBtn: $('#joinBtn'), leaveBtn: $('#leaveBtn'),
+  localVideo: $('#localVideo'), remoteVideo: $('#remoteVideo'),
+  chatInput: $('#chatInput'), sendBtn: $('#sendBtn'),
   historyList: $('#historyList')
 };
 
@@ -56,23 +35,10 @@ let ws, pc, localStream, abrTimer, role=null, iceServers=[{ urls: 'stun:stun.l.g
 
 fetch('/config').then(r=>r.json()).then(cfg=>{ if (cfg && Array.isArray(cfg.iceServers)) iceServers = cfg.iceServers; }).catch(()=>{});
 
-// ----- Profile (localStorage) -----
 function normPhone(s){ return String(s||'').replace(/\D+/g,''); }
-function loadProfile(){
-  const p = JSON.parse(localStorage.getItem('profile')||'{}');
-  if (p.phone) els.myPhone.value = p.phone;
-  if (p.name)  els.myName.value  = p.name;
-  showMeInfo();
-}
-function saveProfile(phone, name){
-  localStorage.setItem('profile', JSON.stringify({ phone, name }));
-  showMeInfo();
-}
-function showMeInfo(){
-  const p = JSON.parse(localStorage.getItem('profile')||'{}');
-  if (p.phone) els.meInfo.textContent = `Ваш профиль: ${p.name||''} +${p.phone}`;
-  else els.meInfo.textContent = 'Профиль не задан';
-}
+function loadProfile(){ try{ const p=JSON.parse(localStorage.getItem('profile')||'{}'); els.myPhone.value=p.phone||''; els.myName.value=p.name||''; showMeInfo(); }catch{} }
+function saveProfile(phone, name){ localStorage.setItem('profile', JSON.stringify({ phone, name })); showMeInfo(); }
+function showMeInfo(){ const p=JSON.parse(localStorage.getItem('profile')||'{}'); els.meInfo.textContent = p.phone?`Ваш профиль: ${p.name||''} +${p.phone}`:'Профиль не задан'; }
 loadProfile();
 
 els.registerBtn.onclick = async () => {
@@ -81,35 +47,27 @@ els.registerBtn.onclick = async () => {
   if (!phone || !name) return alert('Укажите номер и имя');
   const res = await fetch('/api/register', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ phone, name }) });
   const data = await res.json();
-  if (data && data.ok) { saveProfile(phone, name); alert('Профиль сохранён'); }
-  else alert('Ошибка регистрации');
+  if (data && data.ok) { saveProfile(phone, name); alert('Профиль сохранён'); } else alert('Ошибка регистрации');
 };
 
-// ----- Search & call -----
 els.searchBtn.onclick = async () => {
   const q = normPhone(els.searchPhone.value);
   const res = await fetch('/api/users?phone=' + encodeURIComponent(q));
   const list = await res.json();
-  els.results.innerHTML = list.map(u => {
-    return `<div class="user">
-      <div><b>${u.name}</b><br/>+${u.phone}</div>
-      <button data-phone="${u.phone}" class="callBtn">Позвонить</button>
-    </div>`;
-  }).join('');
-  document.querySelectorAll('.callBtn').forEach(btn => {
-    btn.onclick = async () => {
-      const target = btn.getAttribute('data-phone');
-      const mePhone = normPhone(els.myPhone.value);
-      if (!mePhone) return alert('Сначала сохраните свой профиль (номер телефона)');
-      const res = await fetch('/api/call/start', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ me: mePhone, target }) });
-      const { roomId } = await res.json();
-      els.room.value = roomId;
-      els.joinBtn.click();
-    };
+  els.results.innerHTML = list.map(u => (
+    `<div class="user"><div><b>${u.name}</b><br/>+${u.phone}</div><button data-phone="${u.phone}" class="callBtn">Позвонить</button></div>`
+  )).join('');
+  document.querySelectorAll('.callBtn').forEach(btn => btn.onclick = async () => {
+    const target = btn.getAttribute('data-phone');
+    const mePhone = normPhone(els.myPhone.value);
+    if (!mePhone) return alert('Сначала сохраните свой профиль (номер телефона)');
+    const res = await fetch('/api/call/start', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ me: mePhone, target }) });
+    const { roomId } = await res.json();
+    els.room.value = roomId;
+    els.joinBtn.click();
   });
-};
+});
 
-// ----- Media -----
 async function startMedia(){
   const stream = await navigator.mediaDevices.getUserMedia({ video: TARGETS.video, audio: TARGETS.audio });
   const [vt] = stream.getVideoTracks();
@@ -119,14 +77,8 @@ async function startMedia(){
   try { await els.localVideo.play(); } catch {}
   return stream;
 }
-function stopMedia(){
-  if (localStream) localStream.getTracks().forEach(t=>t.stop());
-  localStream=null;
-  els.localVideo.srcObject=null;
-  els.remoteVideo.srcObject=null;
-}
+function stopMedia(){ if (localStream) localStream.getTracks().forEach(t=>t.stop()); localStream=null; els.localVideo.srcObject=null; els.remoteVideo.srcObject=null; }
 
-// ----- Peer -----
 function createPeer(){
   pc = new RTCPeerConnection({ iceServers });
   if (localStream) localStream.getTracks().forEach(t=>pc.addTrack(t, localStream));
@@ -134,29 +86,18 @@ function createPeer(){
   setTimeout(()=>{
     pc.getSenders().forEach(s=>{
       if (!s.track) return;
-      const p = s.getParameters() || {};
-      p.encodings = p.encodings || [{}];
-      if (s.track.kind==='video'){
-        p.encodings[0].maxBitrate = TARGETS.startVideoBitrate;
-        if ('degradationPreference' in p) p.degradationPreference = 'maintain-resolution';
-      } else if (s.track.kind==='audio'){
-        p.encodings[0].maxBitrate = TARGETS.audioBitrate;
-      }
+      const p = s.getParameters() || {}; p.encodings = p.encodings || [{}];
+      if (s.track.kind==='video') { p.encodings[0].maxBitrate = TARGETS.startVideoBitrate; if ('degradationPreference' in p) p.degradationPreference='maintain-resolution'; }
+      else if (s.track.kind==='audio') { p.encodings[0].maxBitrate = TARGETS.audioBitrate; }
       s.setParameters(p).catch(()=>{});
     });
   },0);
 
-  pc.ontrack = async (ev)=>{
-    els.remoteVideo.srcObject = ev.streams[0];
-    try { await els.remoteVideo.play(); } catch {}
-  };
+  pc.ontrack = async (ev)=>{ els.remoteVideo.srcObject = ev.streams[0]; try { await els.remoteVideo.play(); } catch {} };
   pc.onicecandidate = (ev)=>{ if (ev.candidate) send({ type:'candidate', candidate: ev.candidate }); };
-  pc.onconnectionstatechange = ()=>{
-    if (pc.connectionState==='failed') pc.restartIce();
-  };
+  pc.onconnectionstatechange = ()=>{ if (pc.connectionState==='failed') pc.restartIce(); };
 }
 
-// ----- WS -----
 function connectWs(room){
   const proto = location.protocol === 'https:' ? 'wss':'ws';
   ws = new WebSocket(`${proto}://${location.host}/ws`);
@@ -170,7 +111,6 @@ function connectWs(room){
   };
 }
 
-// ---- SDP munging (OPUS bitrate) ----
 function sdpTuneOpus(sdp, maxAvgBitrate = TARGETS.audioBitrate) {
   return sdp.replace(/a=fmtp:(\d+) (.*)/g, (m, pt, params) => {
     if (!/useinbandfec|stereo|maxaveragebitrate/.test(params)) {
@@ -181,7 +121,6 @@ function sdpTuneOpus(sdp, maxAvgBitrate = TARGETS.audioBitrate) {
   });
 }
 
-// ----- SDP/ICE -----
 async function makeOffer(){
   let offer = await pc.createOffer({ offerToReceiveAudio:true, offerToReceiveVideo:true });
   offer.sdp = sdpTuneOpus(offer.sdp);
@@ -191,9 +130,7 @@ async function makeOffer(){
 }
 async function handleDescription(desc){
   if (desc.type==='offer'){
-    if (pc.signalingState!=='stable'){
-      try { await pc.setLocalDescription({ type:'rollback' }); } catch {}
-    }
+    if (pc.signalingState!=='stable'){ try { await pc.setLocalDescription({ type:'rollback' }); } catch {} }
     await pc.setRemoteDescription(desc);
     let answer = await pc.createAnswer();
     answer.sdp = sdpTuneOpus(answer.sdp);
@@ -205,11 +142,8 @@ async function handleDescription(desc){
     await pc.setRemoteDescription(desc);
   }
 }
-async function handleCandidate(c){
-  try { await pc.addIceCandidate(c); } catch (e) { console.warn('addIceCandidate', e); }
-}
+async function handleCandidate(c){ try { await pc.addIceCandidate(c); } catch (e) { console.warn('addIceCandidate', e); } }
 
-// ----- ABR (адаптация битрейта) -----
 function startABR(){
   stopABR();
   abrTimer = setInterval(async ()=>{
@@ -225,8 +159,7 @@ function startABR(){
             if (rep.roundTripTime) rtt = rep.roundTripTime*1000;
           }
         });
-        const p = s.getParameters() || {};
-        p.encodings = p.encodings || [{}];
+        const p = s.getParameters() || {}; p.encodings = p.encodings || [{}];
         const cur = p.encodings[0].maxBitrate || TARGETS.startVideoBitrate;
         let next = cur;
         if (loss > 5 || rtt > 250)       next = Math.max(TARGETS.minVideoBitrate, Math.floor(cur*0.7));
@@ -238,7 +171,6 @@ function startABR(){
 }
 function stopABR(){ if (abrTimer) clearInterval(abrTimer); abrTimer=null; }
 
-// ----- Join/Leave buttons -----
 els.joinBtn.onclick = async () => {
   const room = (els.room.value || '').trim();
   if (!room) return alert('Введите код комнаты (или позвоните пользователю через поиск)');
@@ -259,7 +191,6 @@ els.leaveBtn.onclick = () => {
   loadHistory();
 };
 
-// ----- Chat (пассивный через серверный ретрансмит; UI минимальный) -----
 els.sendBtn.onclick = () => {
   const text = (els.chatInput.value || '').trim();
   if (!text) return;
@@ -267,7 +198,6 @@ els.sendBtn.onclick = () => {
   els.chatInput.value = '';
 };
 
-// ----- History UI -----
 async function loadHistory(){
   const res = await fetch('/history'); const data = await res.json();
   els.historyList.innerHTML = data.slice().reverse().map(item => {
@@ -284,3 +214,5 @@ async function loadHistory(){
   }).join('');
 }
 loadHistory();
+
+function send(obj){ if (ws && ws.readyState===1) ws.send(JSON.stringify(obj)); }

@@ -144,11 +144,10 @@ app.get('/history', (_req, res) => {
 });
 app.delete('/history', (_req, res) => { history.length = 0; res.json({ ok: true }); });
 
-// ---------- WS ----------
+// ---------- WebSocket signaling ----------
 const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`VideoCall: HTTP server http://0.0.0.0:${PORT}`);
 });
-const { WebSocketServer } = require('ws');
 const wss = new WebSocketServer({ server, path: '/ws' });
 
 const rooms = new Map();
