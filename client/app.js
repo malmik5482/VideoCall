@@ -1,218 +1,235 @@
-// ==== Регистрация по телефону, поиск, звонки, история, join/leave ====
-// + WebRTC с высоким качеством и автоадаптацией под сеть
+// Hotfix v3: robust UI wiring + clear feedback
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const myPhone = $("myPhone");
+  const myName  = $("myName");
+  const registerBtn = $("registerBtn");
+  const searchPhone = $("searchPhone");
+  const searchBtn   = $("searchBtn");
+  const results = $("results");
+  const roomInp = $("room");
+  const joinBtn = $("joinBtn");
+  const leaveBtn = $("leaveBtn");
+  const chatInput = $("chatInput");
+  const sendBtn = $("sendBtn");
+  const localVideo = $("localVideo");
+  const remoteVideo = $("remoteVideo");
+  const meInfo = $("meInfo");
+  const historyList = $("historyList");
 
-if (!navigator.mediaDevices) navigator.mediaDevices = {};
-if (!navigator.mediaDevices.getUserMedia) {
-  navigator.mediaDevices.getUserMedia = function (constraints) {
-    const gum = navigator.webkitGetUserMedia || navigator.mozGetUserMedia;
-    if (!gum) return Promise.reject(new Error('getUserMedia not supported'));
-    return new Promise((resolve, reject) => gum.call(navigator, constraints, resolve, reject));
-  };
-}
-if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
-  console.warn('Для доступа к камере/микрофону нужен HTTPS.');
-}
+  const log = (...a) => { console.log(...a); };
+  const uiError = (msg) => { console.error(msg); alert(msg); };
 
-const TARGETS = {
-  video: { width:{ ideal:1920, max:3840 }, height:{ ideal:1080, max:2160 }, frameRate:{ ideal:60, max:60 } },
-  audio: { echoCancellation:true, noiseSuppression:true, autoGainControl:false },
-  startVideoBitrate: 3_000_000, maxVideoBitrate: 8_000_000, minVideoBitrate: 600_000, audioBitrate:128_000
-};
+  let ws = null;
+  let pc = null;
+  let localStream = null;
+  let currentRoom = null;
+  let role = "guest";
 
-const $ = (s)=>document.querySelector(s);
-const els = {
-  myPhone: $('#myPhone'), myName: $('#myName'), registerBtn: $('#registerBtn'), meInfo: $('#meInfo'),
-  searchPhone: $('#searchPhone'), searchBtn: $('#searchBtn'), results: $('#results'),
-  room: $('#room'), joinBtn: $('#joinBtn'), leaveBtn: $('#leaveBtn'),
-  localVideo: $('#localVideo'), remoteVideo: $('#remoteVideo'),
-  chatInput: $('#chatInput'), sendBtn: $('#sendBtn'),
-  historyList: $('#historyList')
-};
+  // Restore profile from localStorage
+  try {
+    const prof = JSON.parse(localStorage.getItem("profile")||"null");
+    if (prof) { myPhone.value = prof.phone || ""; myName.value = prof.name || ""; meInfo.innerText = `Профиль: ${prof.name} (${prof.phone})`; }
+  } catch {}
 
-[els.localVideo, els.remoteVideo].forEach(v=>{ v.muted = v===els.localVideo; v.playsInline = true; v.autoplay = true; });
-
-let ws, pc, localStream, abrTimer, role=null, iceServers=[{ urls: 'stun:stun.l.google.com:19302' }];
-
-fetch('/config').then(r=>r.json()).then(cfg=>{ if (cfg && Array.isArray(cfg.iceServers)) iceServers = cfg.iceServers; }).catch(()=>{});
-
-function normPhone(s){ return String(s||'').replace(/\D+/g,''); }
-function loadProfile(){ try{ const p=JSON.parse(localStorage.getItem('profile')||'{}'); els.myPhone.value=p.phone||''; els.myName.value=p.name||''; showMeInfo(); }catch{} }
-function saveProfile(phone, name){ localStorage.setItem('profile', JSON.stringify({ phone, name })); showMeInfo(); }
-function showMeInfo(){ const p=JSON.parse(localStorage.getItem('profile')||'{}'); els.meInfo.textContent = p.phone?`Ваш профиль: ${p.name||''} +${p.phone}`:'Профиль не задан'; }
-loadProfile();
-
-els.registerBtn.onclick = async () => {
-  const phone = normPhone(els.myPhone.value);
-  const name  = String(els.myName.value||'').trim();
-  if (!phone || !name) return alert('Укажите номер и имя');
-  const res = await fetch('/api/register', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ phone, name }) });
-  const data = await res.json();
-  if (data && data.ok) { saveProfile(phone, name); alert('Профиль сохранён'); } else alert('Ошибка регистрации');
-};
-
-els.searchBtn.onclick = async () => {
-  const q = normPhone(els.searchPhone.value);
-  const res = await fetch('/api/users?phone=' + encodeURIComponent(q));
-  const list = await res.json();
-  els.results.innerHTML = list.map(u => (
-    `<div class="user"><div><b>${u.name}</b><br/>+${u.phone}</div><button data-phone="${u.phone}" class="callBtn">Позвонить</button></div>`
-  )).join('');
-  document.querySelectorAll('.callBtn').forEach(btn => btn.onclick = async () => {
-    const target = btn.getAttribute('data-phone');
-    const mePhone = normPhone(els.myPhone.value);
-    if (!mePhone) return alert('Сначала сохраните свой профиль (номер телефона)');
-    const res = await fetch('/api/call/start', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ me: mePhone, target }) });
-    const { roomId } = await res.json();
-    els.room.value = roomId;
-    els.joinBtn.click();
-  });
-});
-
-async function startMedia(){
-  const stream = await navigator.mediaDevices.getUserMedia({ video: TARGETS.video, audio: TARGETS.audio });
-  const [vt] = stream.getVideoTracks();
-  if (vt && 'contentHint' in vt) vt.contentHint = 'motion';
-  localStream = stream;
-  els.localVideo.srcObject = stream;
-  try { await els.localVideo.play(); } catch {}
-  return stream;
-}
-function stopMedia(){ if (localStream) localStream.getTracks().forEach(t=>t.stop()); localStream=null; els.localVideo.srcObject=null; els.remoteVideo.srcObject=null; }
-
-function createPeer(){
-  pc = new RTCPeerConnection({ iceServers });
-  if (localStream) localStream.getTracks().forEach(t=>pc.addTrack(t, localStream));
-
-  setTimeout(()=>{
-    pc.getSenders().forEach(s=>{
-      if (!s.track) return;
-      const p = s.getParameters() || {}; p.encodings = p.encodings || [{}];
-      if (s.track.kind==='video') { p.encodings[0].maxBitrate = TARGETS.startVideoBitrate; if ('degradationPreference' in p) p.degradationPreference='maintain-resolution'; }
-      else if (s.track.kind==='audio') { p.encodings[0].maxBitrate = TARGETS.audioBitrate; }
-      s.setParameters(p).catch(()=>{});
-    });
-  },0);
-
-  pc.ontrack = async (ev)=>{ els.remoteVideo.srcObject = ev.streams[0]; try { await els.remoteVideo.play(); } catch {} };
-  pc.onicecandidate = (ev)=>{ if (ev.candidate) send({ type:'candidate', candidate: ev.candidate }); };
-  pc.onconnectionstatechange = ()=>{ if (pc.connectionState==='failed') pc.restartIce(); };
-}
-
-function connectWs(room){
-  const proto = location.protocol === 'https:' ? 'wss':'ws';
-  ws = new WebSocket(`${proto}://${location.host}/ws`);
-  ws.onopen = ()=> send({ type:'join', room });
-  ws.onmessage = async (e)=>{
-    const msg = JSON.parse(e.data);
-    if (msg.type==='role') role=msg.role;
-    else if (msg.type==='ready'){ if (role==='caller') await makeOffer(); }
-    else if (msg.type==='description'){ await handleDescription(msg.sdp); }
-    else if (msg.type==='candidate'){ await handleCandidate(msg.candidate); }
-  };
-}
-
-function sdpTuneOpus(sdp, maxAvgBitrate = TARGETS.audioBitrate) {
-  return sdp.replace(/a=fmtp:(\d+) (.*)/g, (m, pt, params) => {
-    if (!/useinbandfec|stereo|maxaveragebitrate/.test(params)) {
-      return `a=fmtp:${pt} stereo=1;maxaveragebitrate=${maxAvgBitrate};useinbandfec=1`;
-    }
-    params = params.replace(/maxaveragebitrate=\d+/,'').replace(/\s*;/g,';').replace(/;;+/g,';');
-    return `a=fmtp:${pt} stereo=1;useinbandfec=1;maxaveragebitrate=${maxAvgBitrate};${params}`;
-  });
-}
-
-async function makeOffer(){
-  let offer = await pc.createOffer({ offerToReceiveAudio:true, offerToReceiveVideo:true });
-  offer.sdp = sdpTuneOpus(offer.sdp);
-  await pc.setLocalDescription(offer);
-  send({ type:'description', sdp: pc.localDescription });
-  startABR();
-}
-async function handleDescription(desc){
-  if (desc.type==='offer'){
-    if (pc.signalingState!=='stable'){ try { await pc.setLocalDescription({ type:'rollback' }); } catch {} }
-    await pc.setRemoteDescription(desc);
-    let answer = await pc.createAnswer();
-    answer.sdp = sdpTuneOpus(answer.sdp);
-    await pc.setLocalDescription(answer);
-    send({ type:'description', sdp: pc.localDescription });
-    startABR();
-  } else if (desc.type==='answer'){
-    if (pc.signalingState!=='have-local-offer'){ console.warn('Ignore answer in', pc.signalingState); return; }
-    await pc.setRemoteDescription(desc);
+  // --- Helpers ---
+  async function api(path, opts={}) {
+    const res = await fetch(path, { headers: { "Content-Type":"application/json" }, ...opts });
+    if (!res.ok) throw new Error(`API ${path} => ${res.status}`);
+    return res.json();
   }
-}
-async function handleCandidate(c){ try { await pc.addIceCandidate(c); } catch (e) { console.warn('addIceCandidate', e); } }
-
-function startABR(){
-  stopABR();
-  abrTimer = setInterval(async ()=>{
-    if (!pc) return;
+  async function getConfig() {
     try {
-      const senders = pc.getSenders().filter(s=>s.track && s.track.kind==='video');
-      for (const s of senders){
-        const stats = await s.getStats();
-        let loss = 0, rtt = 0;
-        stats.forEach(rep=>{
-          if (rep.type==='outbound-rtp' && !rep.isRemote) {
-            if (rep.packetsSent && rep.packetsLost!=null) loss = (rep.packetsLost/(rep.packetsSent+rep.packetsLost))*100;
-            if (rep.roundTripTime) rtt = rep.roundTripTime*1000;
-          }
-        });
-        const p = s.getParameters() || {}; p.encodings = p.encodings || [{}];
-        const cur = p.encodings[0].maxBitrate || TARGETS.startVideoBitrate;
-        let next = cur;
-        if (loss > 5 || rtt > 250)       next = Math.max(TARGETS.minVideoBitrate, Math.floor(cur*0.7));
-        else if (loss < 1 && rtt < 120)  next = Math.min(TARGETS.maxVideoBitrate, Math.floor(cur*1.2));
-        if (next !== cur){ p.encodings[0].maxBitrate = next; await s.setParameters(p).catch(()=>{}); }
+      const cfg = await api("/config");
+      if (!cfg || !Array.isArray(cfg.iceServers)) return { iceServers: [{urls:"stun:stun.l.google.com:19302"}] };
+      return cfg;
+    } catch {
+      return { iceServers: [{urls:"stun:stun.l.google.com:19302"}] };
+    }
+  }
+  function renderHistory(items=[]) {
+    historyList.innerHTML = "";
+    for (const it of items.slice().reverse()) {
+      const div = document.createElement("div");
+      const dur = it.durationSec ? `${it.durationSec}s` : "в процессе";
+      div.className = "item";
+      div.textContent = `Комната: ${it.room} • начат: ${new Date(it.startedAt).toLocaleString()} • длительность: ${dur} • макс участников: ${it.participantsMax}`;
+      historyList.appendChild(div);
+    }
+  }
+  async function refreshHistory() {
+    try {
+      const list = await api("/history");
+      renderHistory(list);
+    } catch (e) { console.warn("history:", e.message); }
+  }
+  refreshHistory();
+  setInterval(refreshHistory, 10000);
+
+  // --- Media ---
+  async function ensureLocalMedia() {
+    if (localStream) return localStream;
+    const constraints = {
+      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+      video: {
+        width: { ideal: 1920 }, height: { ideal: 1080 },
+        frameRate: { ideal: 30, max: 60 }
+      }
+    };
+    localStream = await navigator.mediaDevices.getUserMedia(constraints);
+    localVideo.srcObject = localStream;
+    log("Local stream tracks:", localStream.getTracks().map(t=>t.kind));
+    return localStream;
+  }
+
+  function closePc() {
+    try { pc?.getSenders()?.forEach(s=>s.track && s.track.stop && s.track.stop()); } catch {}
+    try { pc?.close(); } catch {}
+    pc = null;
+  }
+  function closeWs() { try { ws?.close(); } catch {} ws = null; }
+
+  async function createPc() {
+    const cfg = await getConfig();
+    pc = new RTCPeerConnection(cfg);
+    pc.onicecandidate = (e) => {
+      if (e.candidate && ws?.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type:"candidate", candidate: e.candidate }));
+      }
+    };
+    pc.ontrack = (e) => { remoteVideo.srcObject = e.streams[0]; };
+    pc.onconnectionstatechange = () => { log("pc state:", pc.connectionState); };
+    const stream = await ensureLocalMedia();
+    for (const track of stream.getTracks()) pc.addTrack(track, stream);
+    // try bump bitrate
+    try {
+      const senders = pc.getSenders().filter(s=>s.track && s.track.kind==="video");
+      for (const s of senders) {
+        const p = s.getParameters(); p.encodings = [{ maxBitrate: 8_000_000 }]; await s.setParameters(p);
       }
     } catch {}
-  }, 3000);
-}
-function stopABR(){ if (abrTimer) clearInterval(abrTimer); abrTimer=null; }
+  }
 
-els.joinBtn.onclick = async () => {
-  const room = (els.room.value || '').trim();
-  if (!room) return alert('Введите код комнаты (или позвоните пользователю через поиск)');
-  els.joinBtn.disabled = true;
-  await startMedia();
-  createPeer();
-  connectWs(room);
-  els.leaveBtn.disabled = false;
-};
-els.leaveBtn.onclick = () => {
-  try { send({ type:'leave' }); } catch {}
-  try { ws && ws.close(); } catch {}
-  try { pc && pc.close(); } catch {}
-  stopABR();
-  stopMedia();
-  els.joinBtn.disabled = false;
-  els.leaveBtn.disabled = true;
-  loadHistory();
-};
+  // --- WebSocket signaling ---
+  function connectWs(room) {
+    return new Promise((resolve, reject) => {
+      const url = (location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/ws";
+      ws = new WebSocket(url);
+      ws.onopen = () => { ws.send(JSON.stringify({ type:"join", room })); resolve(); };
+      ws.onerror = (e) => reject(new Error("WS error"));
+      ws.onclose = () => { log("WS closed"); };
+      ws.onmessage = async (ev) => {
+        let msg; try { msg = JSON.parse(ev.data); } catch { return; }
+        // role
+        if (msg.type === "role") { role = msg.role; log("role:", role); return; }
+        if (msg.type === "full") { uiError("Комната уже полная"); return; }
+        if (msg.type === "ready") { // callee joined, let caller offer
+          if (role === "caller") {
+            await ensureLocalMedia();
+            if (!pc) await createPc();
+            const offer = await pc.createOffer({ iceRestart: false, offerToReceiveVideo: true, offerToReceiveAudio: true });
+            await pc.setLocalDescription(offer);
+            ws.send(JSON.stringify({ type:"description", sdp: pc.localDescription }));
+          }
+          return;
+        }
+        if (msg.type === "peer-left") { log("peer left"); return; }
+        if (msg.type === "bye") { return; }
 
-els.sendBtn.onclick = () => {
-  const text = (els.chatInput.value || '').trim();
-  if (!text) return;
-  send({ type:'chat', text });
-  els.chatInput.value = '';
-};
+        if (msg.type === "description") {
+          if (!pc) await createPc();
+          const desc = new RTCSessionDescription(msg.sdp);
+          if (desc.type === "offer") {
+            await pc.setRemoteDescription(desc);
+            const answer = await pc.createAnswer();
+            await pc.setLocalDescription(answer);
+            ws.send(JSON.stringify({ type:"description", sdp: pc.localDescription }));
+          } else if (desc.type === "answer") {
+            if (pc.signalingState === "have-local-offer") {
+              await pc.setRemoteDescription(desc);
+            }
+          }
+          return;
+        }
+        if (msg.type === "candidate") {
+          try { await pc?.addIceCandidate(new RTCIceCandidate(msg.candidate)); } catch (e) { console.warn("addIceCandidate", e); }
+          return;
+        }
+        if (msg.type === "chat") {
+          console.log("chat:", msg.text);
+          return;
+        }
+      };
+    });
+  }
 
-async function loadHistory(){
-  const res = await fetch('/history'); const data = await res.json();
-  els.historyList.innerHTML = data.slice().reverse().map(item => {
-    const start = new Date(item.startedAt).toLocaleString();
-    const end = item.endedAt ? new Date(item.endedAt).toLocaleString() : 'идёт';
-    const dur = item.durationSec ? (item.durationSec+' сек') : '—';
-    return `<div class="item">
-      <div><b>Комната:</b> ${item.room}</div>
-      <div><b>Начало:</b> ${start}</div>
-      <div><b>Окончание:</b> ${end}</div>
-      <div><b>Длительность:</b> ${dur}</div>
-      <div><b>Участников макс:</b> ${item.participantsMax}</div>
-    </div>`;
-  }).join('');
-}
-loadHistory();
+  // --- UI actions ---
+  registerBtn.addEventListener("click", async () => {
+    try {
+      const phone = (myPhone.value||"").replace(/\D+/g,"");
+      const name  = (myName.value||"").trim();
+      if (!phone || !name) return uiError("Введите телефон и имя");
+      const res = await api("/api/register", { method:"POST", body: JSON.stringify({ phone, name }) });
+      localStorage.setItem("profile", JSON.stringify({ phone: res.user.phone, name: res.user.name }));
+      meInfo.innerText = `Профиль: ${res.user.name} (${res.user.phone})`;
+      alert("Профиль сохранён");
+    } catch (e) { uiError("Ошибка регистрации: " + e.message); }
+  });
 
-function send(obj){ if (ws && ws.readyState===1) ws.send(JSON.stringify(obj)); }
+  searchBtn.addEventListener("click", async () => {
+    try {
+      const phone = (searchPhone.value||"").replace(/\D+/g,"");
+      const list = await api("/api/users?phone=" + encodeURIComponent(phone));
+      results.innerHTML = "";
+      list.forEach(u => {
+        const row = document.createElement("div");
+        row.className = "user";
+        row.innerHTML = `<div>${u.name} — ${u.phone}</div><button data-p="${u.phone}">Позвонить</button>`;
+        row.querySelector("button").onclick = async () => {
+          const me = (myPhone.value||"").replace(/\D+/g,"");
+          if (!me) return uiError("Сначала сохраните профиль");
+          const r = await api("/api/call/start", { method:"POST", body: JSON.stringify({ me, target: u.phone }) });
+          roomInp.value = r.roomId;
+          joinBtn.click();
+        };
+        results.appendChild(row);
+      });
+      if (!list.length) results.innerHTML = "<div class='small'>Ничего не найдено</div>";
+    } catch (e) { uiError("Ошибка поиска: "+e.message); }
+  });
+
+  joinBtn.addEventListener("click", async () => {
+    try {
+      const r = roomInp.value.trim() || "demo";
+      if (currentRoom) return uiError("Вы уже в комнате");
+      await ensureLocalMedia();
+      await connectWs(r);
+      currentRoom = r;
+      joinBtn.disabled = true;
+      leaveBtn.disabled = false;
+      // Если нам выдали роль callee, мы ждём offer; если caller — создадим offer по событию 'ready'.
+      alert("Подключились к комнате: " + r + ". Откройте вторую вкладку и подключитесь тем же кодом.");
+    } catch (e) { uiError("Не удалось подключиться: " + e.message); closeWs(); closePc(); currentRoom = null; }
+  });
+
+  leaveBtn.addEventListener("click", () => {
+    try { ws?.send(JSON.stringify({ type: "leave" })); } catch {}
+    closePc(); closeWs();
+    currentRoom = null;
+    joinBtn.disabled = false;
+    leaveBtn.disabled = true;
+    remoteVideo.srcObject = null;
+  });
+
+  sendBtn.addEventListener("click", () => {
+    const text = (chatInput.value||"").trim();
+    if (!text) return;
+    try { ws?.send(JSON.stringify({ type:"chat", text })); } catch {}
+    chatInput.value = "";
+  });
+
+  window.addEventListener("beforeunload", () => {
+    try { ws?.send(JSON.stringify({ type: "leave" })); } catch {}
+    closePc(); closeWs();
+  });
+})(); 
