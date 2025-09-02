@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Видеомессенджер</title>
+  <link rel="stylesheet" href="style.css"/>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Видеозвонок 1-к-1</h1>
+    <input id="room" placeholder="код комнаты"/>
+    <button id="joinBtn">Подключиться</button>
+    <div class="grid">
+      <div><video id="local" autoplay playsinline muted></video></div>
+      <div><video id="remote" autoplay playsinline></video></div>
+    </div>
+    <div>
+      <input id="msg" placeholder="Сообщение"/>
+      <button id="send">Отправить</button>
+      <div id="log"></div>
+    </div>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>
