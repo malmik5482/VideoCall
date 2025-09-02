@@ -1,144 +1,176 @@
-
-const express = require('express');
-const http = require('http');
+require('dotenv').config();
 const path = require('path');
-const { WebSocketServer } = require('ws');
+const express = require('express');
+const compression = require('compression');
+const helmet = require('helmet');
 const cors = require('cors');
+const { WebSocketServer } = require('ws');
 
 const app = express();
+const PORT = process.env.PORT || 3000;
+
+app.disable('x-powered-by');
+app.use(helmet({ contentSecurityPolicy: false }));
+app.use(compression());
 app.use(cors());
 app.use(express.json());
 
-// Build ICE from ENV:
-// Priority: ICE_JSON (full JSON array) -> ICE_URLS (comma list) + optional TURN_USER/TURN_PASS -> default STUN
-function buildIceServers() {
-  const j = process.env.ICE_JSON;
-  if (j) {
-    try { 
-      const arr = JSON.parse(j);
-      if (Array.isArray(arr)) return arr;
-    } catch {}
-  }
-  const urlsRaw = (process.env.ICE_URLS || '').trim();
-  if (urlsRaw) {
-    const urls = urlsRaw.split(',').map(s => s.trim()).filter(Boolean);
-    const user = process.env.TURN_USER || '';
-    const pass = process.env.TURN_PASS || '';
-    // If TURN creds provided, include one TURN object with both URLs that include 'turn:'
-    const stunServers = urls.filter(u => u.startsWith('stun:')).map(u => ({ urls: u }));
-    const turnUrls = urls.filter(u => u.startsWith('turn:'));
-    const res = [...stunServers];
-    if (turnUrls.length) {
-      const turnObj = { urls: turnUrls };
-      if (user) turnObj.username = user;
-      if (pass) turnObj.credential = pass;
-      res.push(turnObj);
+// Serve static client
+const clientDir = path.join(__dirname, '..', 'client');
+app.use(express.static(clientDir, { extensions: ['html'] }));
+
+// ---- In-memory call history ----
+// Every item: { room, startedAt, endedAt, durationSec, participantsMax }
+const history = [];
+
+function addHistoryStart(room) {
+  const now = Date.now();
+  const item = { room, startedAt: now, endedAt: null, durationSec: null, participantsMax: 1 };
+  history.push(item);
+  return item;
+}
+function addHistoryEnd(room) {
+  // find last entry of this room without endedAt
+  for (let i = history.length - 1; i >= 0; i--) {
+    const item = history[i];
+    if (item.room === room && item.endedAt === null) {
+      item.endedAt = Date.now();
+      item.durationSec = Math.max(1, Math.round((item.endedAt - item.startedAt)/1000));
+      return item;
     }
-    return res.length ? res : [{ urls: 'stun:stun.l.google.com:19302' }];
   }
-  return [{ urls: 'stun:stun.l.google.com:19302' }];
+  return null;
 }
 
-// In-memory history
-const history = []; // {room, startedAt, endedAt, durationSec, participantsMax}
-const rooms = new Map(); // roomId -> Set<WebSocket>
-
-function ensureRoom(room) {
-  if (!rooms.has(room)) rooms.set(room, new Set());
-  return rooms.get(room);
-}
-function updateHistory(room) {
-  const set = rooms.get(room);
-  let rec = history.find(r => r.room === room && !r.endedAt);
-  if (!rec) {
-    rec = { room, startedAt: Date.now(), participantsMax: 0, endedAt: null, durationSec: null };
-    history.push(rec);
+app.get('/healthz', (_req, res) => res.json({ ok: true }));
+app.get('/config', (_req, res) => {
+  let iceServers = [{ urls: 'stun:stun.l.google.com:19302' }];
+  try {
+    if (process.env.ICE_SERVERS) {
+      const parsed = JSON.parse(process.env.ICE_SERVERS);
+      if (Array.isArray(parsed)) iceServers = parsed;
+    } else if (process.env.TURN_URL && process.env.TURN_USER && process.env.TURN_PASS) {
+      iceServers.push({
+        urls: process.env.TURN_URL.split(','),
+        username: process.env.TURN_USER,
+        credential: process.env.TURN_PASS,
+      });
+    }
+  } catch (e) {
+    console.error('Failed to parse ICE_SERVERS:', e?.message);
   }
-  rec.participantsMax = Math.max(rec.participantsMax, set ? set.size : 0);
-  if (!set || set.size === 0) {
-    rec.endedAt = Date.now();
-    rec.durationSec = Math.round((rec.endedAt - rec.startedAt)/1000);
-  }
-}
+  res.json({ iceServers });
+});
 
-app.get('/healthz', (_req, res) => res.status(200).send('ok'));
-app.get('/config', (_req, res) => res.json({ iceServers: buildIceServers() }));
-app.get('/history', (_req, res) => res.json(history.slice(-50)));
+// History endpoints
+app.get('/history', (_req, res) => {
+  // Return last 100 items
+  const last = history.slice(-100).map(i => ({
+    room: i.room,
+    startedAt: i.startedAt,
+    endedAt: i.endedAt,
+    durationSec: i.durationSec,
+    participantsMax: i.participantsMax,
+  }));
+  res.json(last);
+});
+app.delete('/history', (_req, res) => {
+  history.length = 0;
+  res.json({ ok: true });
+});
 
-// Serve client
-app.use(express.static(path.join(__dirname, '..', 'client')));
-app.get('*', (_req, res) => res.sendFile(path.join(__dirname, '..', 'client', 'index.html')));
+const server = app.listen(PORT, () => {
+  console.log(`VideoCall: HTTP server on http://0.0.0.0:${PORT}`);
+});
 
-const server = http.createServer(app);
+// ---- WebSocket signaling (path /ws) ----
 const wss = new WebSocketServer({ server, path: '/ws' });
 
-function heartbeat() { this.isAlive = true; }
+// room -> Set<ws>
+const rooms = new Map();
+// ws -> room
+const socketRoom = new WeakMap();
+
+function broadcast(room, payload, except) {
+  const set = rooms.get(room);
+  if (!set) return;
+  for (const peer of set) {
+    if (peer !== except && peer.readyState === 1) {
+      try { peer.send(payload); } catch {}
+    }
+  }
+}
+
+function setRole(ws, role) {
+  try { ws.send(JSON.stringify({ type: 'role', role })); } catch {}
+}
+
+function joinRoom(ws, room) {
+  if (!rooms.has(room)) {
+    rooms.set(room, new Set());
+    // new room -> history start
+    addHistoryStart(room);
+  }
+  const set = rooms.get(room);
+  set.add(ws);
+  socketRoom.set(ws, room);
+  // Track max participants
+  const item = history.findLast(i => i.room === room && i.endedAt === null);
+  if (item) item.participantsMax = Math.max(item.participantsMax, set.size);
+
+  const count = set.size;
+  if (count === 1) setRole(ws, 'caller');
+  else if (count === 2) {
+    setRole(ws, 'callee');
+    // Notify both peers ready
+    for (const peer of set) {
+      try { peer.send(JSON.stringify({ type: 'ready' })); } catch {}
+    }
+  } else {
+    try { ws.send(JSON.stringify({ type: 'full' })); } catch {}
+  }
+}
+
+function leaveRoom(ws) {
+  const room = socketRoom.get(ws);
+  if (!room) return;
+  const set = rooms.get(room);
+  if (set) {
+    set.delete(ws);
+    if (set.size === 0) {
+      rooms.delete(room);
+      addHistoryEnd(room);
+    } else {
+      broadcast(room, JSON.stringify({ type: 'peer-left' }), ws);
+    }
+  }
+  socketRoom.delete(ws);
+}
+
 wss.on('connection', (ws) => {
-  ws.isAlive = true;
-  ws.on('pong', heartbeat);
-  ws.room = null;
-
-  ws.sendJSON = (o) => { try { ws.send(JSON.stringify(o)); } catch {} };
-
   ws.on('message', (buf) => {
     let msg = null;
     try { msg = JSON.parse(buf.toString()); } catch { return; }
 
-    if (msg.type === 'join') {
-      const room = String(msg.room || 'demo');
-      const set = ensureRoom(room);
-      if (set.size >= 2) { ws.sendJSON({ type:'full' }); return; }
-      set.add(ws);
-      ws.room = room;
-      updateHistory(room);
-      if (set.size === 2) {
-        for (const peer of set) peer.sendJSON({ type:'ready' });
-      }
+    if (msg.type === 'join' && msg.room) {
+      joinRoom(ws, msg.room);
       return;
     }
 
-    if (!ws.room) return;
-    const set = rooms.get(ws.room);
-    if (!set) return;
+    const room = socketRoom.get(ws);
+    if (!room) return;
 
+    if (msg.type === 'description' || msg.type === 'candidate' || msg.type === 'chat') {
+      broadcast(room, JSON.stringify(msg), ws);
+    }
     if (msg.type === 'leave') {
-      set.delete(ws);
-      for (const peer of set) peer.sendJSON({ type:'peer-left' });
-      if (set.size === 0) rooms.delete(ws.room);
-      updateHistory(ws.room);
-      ws.room = null;
-      return;
-    }
-
-    if (['description','candidate','chat'].includes(msg.type)) {
-      for (const peer of set) {
-        if (peer !== ws) peer.sendJSON(msg);
-      }
+      // Graceful leave by user
+      try { ws.send(JSON.stringify({ type: 'bye' })); } catch {}
+      leaveRoom(ws);
+      try { ws.close(); } catch {}
     }
   });
 
-  ws.on('close', () => {
-    if (ws.room) {
-      const set = rooms.get(ws.room);
-      if (set) {
-        set.delete(ws);
-        for (const peer of set) peer.sendJSON({ type:'peer-left' });
-        if (set.size === 0) rooms.delete(ws.room);
-      }
-      updateHistory(ws.room);
-    }
-  });
-});
-
-setInterval(() => {
-  wss.clients.forEach((ws) => {
-    if (ws.isAlive === false) return ws.terminate();
-    ws.isAlive = false;
-    try { ws.ping(); } catch {}
-  });
-}, 30000);
-
-const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
-  console.log('Server listening on :' + PORT);
+  ws.on('close', () => leaveRoom(ws));
+  ws.on('error', () => leaveRoom(ws));
 });
