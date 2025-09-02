@@ -1,25 +1,46 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ru">
 <head>
-  <meta charset="UTF-8" />
-  <title>Видеозвонок 1-к-1</title>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Видео‑мессенджер 1‑к‑1</title>
   <style>
-    body { background: #111; color: #fff; text-align: center; font-family: sans-serif; }
-    video { width: 45%; margin: 10px; background: black; }
-    #controls { margin: 20px; }
+    body{background:#0f0f12;color:#fff;font-family:system-ui,Segoe UI,Arial,sans-serif;margin:0;padding:20px}
+    h1{margin:0 0 10px}
+    .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:8px 0}
+    input,button{height:36px;border-radius:8px;border:1px solid #2e3038;background:#14161b;color:#fff;padding:0 10px}
+    button{cursor:pointer}
+    video{width:100%;min-height:280px;background:#000;border-radius:12px}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .panel{background:#12141a;border:1px solid #2b2e36;border-radius:12px;padding:12px;margin:10px 0}
+    .small{opacity:.8;font-size:12px}
+    #historyList .item{font-size:12px;opacity:.9;border-bottom:1px dashed #2b2e36;padding:6px 0}
   </style>
 </head>
 <body>
-  <h1>Видеозвонок 1-к-1</h1>
-  <div id="controls">
-    <input id="room" placeholder="Код комнаты" />
-    <button id="joinBtn">Подключиться</button>
-    <button id="leaveBtn">Отключиться</button>
+  <h1>Видео‑мессенджер 1‑к‑1</h1>
+  <div class="panel">
+    <div class="row">
+      <input id="room" placeholder="Код комнаты" style="min-width:180px"/>
+      <button id="joinBtn">Подключиться</button>
+      <button id="leaveBtn" disabled>Отключиться</button>
+    </div>
+    <div class="small">Откройте вторую вкладку с этим же сайтом и введите тот же код, чтобы протестировать звонок.</div>
   </div>
-  <div>
+
+  <div class="grid">
     <video id="localVideo" autoplay playsinline muted></video>
     <video id="remoteVideo" autoplay playsinline></video>
   </div>
+
+  <div class="panel">
+    <div class="row">
+      <input id="chatInput" placeholder="Сообщение" style="flex:1;min-width:220px"/>
+      <button id="sendBtn">Отправить</button>
+    </div>
+    <div id="historyList"></div>
+  </div>
+
   <script src="app.js"></script>
 </body>
 </html>
