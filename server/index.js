@@ -6,7 +6,7 @@ const compression = require('compression');
 const helmet = require('helmet');
 const cors = require('cors');
 const { WebSocketServer } = require('ws');
-const { nanoid } = require('nanoid');
+const { nanoid } = require('nanoid'); // v3 CJS
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -15,31 +15,30 @@ app.disable('x-powered-by');
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(compression());
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '256kb' }));
 
-// ---------- Simple JSON "DB" with safe FS fallback ----------
 const dataDir = path.join(__dirname, '..', 'data');
 const usersFile = path.join(dataDir, 'users.json');
 let memUsers = []; // fallback in-memory
 
 function safeMkdir(dir){
   try { fs.mkdirSync(dir, { recursive: true }); return true; }
-  catch (e) { console.error('mkdir failed:', e.message); return false; }
+  catch (e) { console.error('[safeMkdir]', e.message); return false; }
 }
 function safeRead(file){
   try { return fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : null; }
-  catch (e) { console.error('read failed:', e.message); return null; }
+  catch (e) { console.error('[safeRead]', e.message); return null; }
 }
 function safeWrite(file, data){
   try { fs.writeFileSync(file, data); return true; }
-  catch (e) { console.error('write failed:', e.message); return false; }
+  catch (e) { console.error('[safeWrite]', e.message); return false; }
 }
 
 function loadUsers() {
   const txt = safeRead(usersFile);
   if (txt) {
     try { return JSON.parse(txt).users || []; }
-    catch { return memUsers; }
+    catch (e) { console.error('[parse users.json]', e.message); return memUsers; }
   }
   return memUsers;
 }
@@ -52,11 +51,9 @@ function normalizePhone(phone) {
   return String(phone || '').replace(/\D+/g, '');
 }
 
-// ---------- Static client ----------
 const clientDir = path.join(__dirname, '..', 'client');
 app.use(express.static(clientDir, { extensions: ['html'] }));
 
-// ---------- Health & Config ----------
 app.get('/healthz', (_req, res) => res.json({ ok: true }));
 app.get('/config', (_req, res) => {
   let iceServers = [{ urls: 'stun:stun.l.google.com:19302' }];
@@ -72,12 +69,12 @@ app.get('/config', (_req, res) => {
       });
     }
   } catch (e) {
-    console.error('Failed to parse ICE_SERVERS:', e?.message);
+    console.error('[/config] parse ICE_SERVERS', e?.message);
   }
   res.json({ iceServers });
 });
 
-// ---------- Users API ----------
+// --- Users API ---
 app.post('/api/register', (req, res) => {
   let { phone, name } = req.body || {};
   phone = normalizePhone(phone);
@@ -116,7 +113,7 @@ app.post('/api/call/start', (req, res) => {
   return res.json({ roomId });
 });
 
-// ---------- History ----------
+// --- History ---
 const history = [];
 function addHistoryStart(room) {
   const now = Date.now();
@@ -144,9 +141,9 @@ app.get('/history', (_req, res) => {
 });
 app.delete('/history', (_req, res) => { history.length = 0; res.json({ ok: true }); });
 
-// ---------- WebSocket signaling ----------
+// --- WS signaling ---
 const server = app.listen(PORT, '0.0.0.0', () => {
-  console.log(`VideoCall: HTTP server http://0.0.0.0:${PORT}`);
+  console.log('VideoCall listening on http://0.0.0.0:' + PORT);
 });
 const wss = new WebSocketServer({ server, path: '/ws' });
 
@@ -162,27 +159,22 @@ function broadcast(room, payload, except) {
     }
   }
 }
-function setRole(ws, role) {
-  try { ws.send(JSON.stringify({ type: 'role', role })); } catch {}
-}
+function setRole(ws, role) { try { ws.send(JSON.stringify({ type: 'role', role })); } catch {} }
 function joinRoom(ws, room) {
   if (!rooms.has(room)) { rooms.set(room, new Set()); addHistoryStart(room); }
   const set = rooms.get(room);
   set.add(ws);
   socketRoom.set(ws, room);
 
-  const item = history.findLast?.(i => i.room === room && i.endedAt === null) ||
-               history.slice().reverse().find(i => i.room === room && i.endedAt === null);
-  if (item) item.participantsMax = Math.max(item.participantsMax, set.size);
+  const active = [...history].reverse().find(i => i.room === room && i.endedAt === null);
+  if (active) active.participantsMax = Math.max(active.participantsMax, set.size);
 
   const count = set.size;
   if (count === 1) setRole(ws, 'caller');
   else if (count === 2) {
     setRole(ws, 'callee');
     for (const peer of set) { try { peer.send(JSON.stringify({ type: 'ready' })); } catch {} }
-  } else {
-    try { ws.send(JSON.stringify({ type: 'full' })); } catch {}
-  }
+  } else { try { ws.send(JSON.stringify({ type: 'full' })); } catch {} }
 }
 function leaveRoom(ws) {
   const room = socketRoom.get(ws);
