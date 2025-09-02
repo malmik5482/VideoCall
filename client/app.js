@@ -1,5 +1,4 @@
-
-// ---- Polyfill для getUserMedia (старые/нестандартные браузеры) ----
+// ---- Polyfill for getUserMedia (for older browsers) ----
 if (!navigator.mediaDevices) navigator.mediaDevices = {};
 if (!navigator.mediaDevices.getUserMedia) {
   navigator.mediaDevices.getUserMedia = function (constraints) {
@@ -12,41 +11,74 @@ if (!navigator.mediaDevices.getUserMedia) {
     );
   };
 }
-
 if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
-  alert('Для доступа к камере/микрофону нужен HTTPS. Откройте сайт по https://');
+  console.warn('Для доступа к камере/микрофону нужен HTTPS.');
 }
+// --------------------------------------------------------
 
-// ---------------------------------------------------------------
-// Основной клиентский код (упрощённый пример)
-const socket = io("https://" + window.location.host);
+const els = {
+  room: document.getElementById('room') || document.querySelector('input'),
+  joinBtn: document.getElementById('joinBtn') || document.querySelector('button'),
+  localVideo: document.getElementById('localVideo') || document.querySelector('video#localVideo'),
+  remoteVideo: document.getElementById('remoteVideo') || document.querySelector('video#remoteVideo'),
+};
 
-const joinBtn = document.querySelector("button");
-const roomInput = document.querySelector("input");
-const localVideo = document.createElement("video");
-const remoteVideo = document.createElement("video");
+let pc, ws, localStream;
+let iceServers = [{ urls: 'stun:stun.l.google.com:19302' }];
 
-localVideo.autoplay = true;
-remoteVideo.autoplay = true;
-document.body.appendChild(localVideo);
-document.body.appendChild(remoteVideo);
+fetch('/config').then(r => r.json()).then(cfg => {
+  if (cfg && Array.isArray(cfg.iceServers)) iceServers = cfg.iceServers;
+}).catch(()=>{});
 
 async function startMedia() {
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-    localVideo.srcObject = stream;
-    return stream;
-  } catch (err) {
-    console.error("Ошибка доступа к камере/микрофону:", err);
-  }
+  const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+  if (els.localVideo) els.localVideo.srcObject = stream;
+  return stream;
 }
 
-joinBtn.onclick = async () => {
-  const room = roomInput.value;
-  if (!room) return alert("Введите код комнаты");
+function connectWs(room) {
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  ws = new WebSocket(`${proto}://${location.host}/ws`);
+  ws.onopen = () => ws.send(JSON.stringify({ type: 'join', room }));
+  ws.onmessage = async (ev) => {
+    const msg = JSON.parse(ev.data);
+    if (msg.type === 'joined') {
+      if (msg.peers >= 1) await makeOffer();
+    } else if (msg.type === 'offer') {
+      await handleOffer(msg.sdp);
+    } else if (msg.type === 'answer') {
+      await handleAnswer(msg.sdp);
+    } else if (msg.type === 'candidate') {
+      await handleCandidate(msg.candidate);
+    }
+  };
+}
 
-  const stream = await startMedia();
-  if (!stream) return;
+function createPeer() {
+  pc = new RTCPeerConnection({ iceServers });
+  localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
+  pc.ontrack = (ev) => { if (els.remoteVideo) els.remoteVideo.srcObject = ev.streams[0]; };
+  pc.onicecandidate = (ev) => { if (ev.candidate) ws.send(JSON.stringify({ type: 'candidate', candidate: ev.candidate })); };
+}
 
-  socket.emit("join", room);
+async function makeOffer() {
+  const offer = await pc.createOffer();
+  await pc.setLocalDescription(offer);
+  ws.send(JSON.stringify({ type: 'offer', sdp: pc.localDescription }));
+}
+async function handleOffer(sdp) {
+  await pc.setRemoteDescription(sdp);
+  const answer = await pc.createAnswer();
+  await pc.setLocalDescription(answer);
+  ws.send(JSON.stringify({ type: 'answer', sdp: pc.localDescription }));
+}
+async function handleAnswer(sdp) { await pc.setRemoteDescription(sdp); }
+async function handleCandidate(c) { try { await pc.addIceCandidate(c); } catch {} }
+
+(els.joinBtn || {}).onclick = async () => {
+  const room = (els.room && els.room.value || '').trim();
+  if (!room) return alert('Введите код комнаты');
+  localStream = await startMedia();
+  createPeer();
+  connectWs(room);
 };
