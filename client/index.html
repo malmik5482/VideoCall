@@ -1,53 +1,25 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ru">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Видео‑мессенджер</title>
-  <link rel="stylesheet" href="style.css" />
+  <meta charset="UTF-8" />
+  <title>Видеозвонок 1-к-1</title>
+  <style>
+    body { background: #111; color: #fff; text-align: center; font-family: sans-serif; }
+    video { width: 45%; margin: 10px; background: black; }
+    #controls { margin: 20px; }
+  </style>
 </head>
 <body>
-  <header class="bar">
-    <div class="left">
-      <h1>Видео‑мессенджер</h1>
-      <div class="row">
-        <input id="myPhone" placeholder="Ваш номер телефона" />
-        <input id="myName"  placeholder="Ваше имя" />
-        <button id="registerBtn">Сохранить профиль</button>
-      </div>
-      <div class="small" id="meInfo"></div>
-    </div>
-    <div class="right">
-      <div class="row">
-        <input id="searchPhone" placeholder="Найти по номеру..." />
-        <button id="searchBtn">Поиск</button>
-      </div>
-      <div id="results"></div>
-    </div>
-  </header>
-
-  <main class="layout">
-    <section class="videos">
-      <video id="localVideo" playsinline muted autoplay></video>
-      <video id="remoteVideo" playsinline autoplay></video>
-    </section>
-    <aside class="side">
-      <h3>Комната</h3>
-      <div class="row">
-        <input id="room" placeholder="код комнаты (не обязательно)" />
-        <button id="joinBtn">Подключиться</button>
-        <button id="leaveBtn" class="danger" disabled>Отключиться</button>
-      </div>
-      <h3>История звонков</h3>
-      <div id="historyList" class="history"></div>
-    </aside>
-  </main>
-
-  <footer class="footer">
-    <input id="chatInput" placeholder="Сообщение" />
-    <button id="sendBtn">Отправить</button>
-  </footer>
-
+  <h1>Видеозвонок 1-к-1</h1>
+  <div id="controls">
+    <input id="room" placeholder="Код комнаты" />
+    <button id="joinBtn">Подключиться</button>
+    <button id="leaveBtn">Отключиться</button>
+  </div>
+  <div>
+    <video id="localVideo" autoplay playsinline muted></video>
+    <video id="remoteVideo" autoplay playsinline></video>
+  </div>
   <script src="app.js"></script>
 </body>
 </html>
