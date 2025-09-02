@@ -1,52 +1,52 @@
-const roomInput=document.getElementById("room");
-const joinBtn=document.getElementById("joinBtn");
-const localVideo=document.getElementById("local");
-const remoteVideo=document.getElementById("remote");
-const msg=document.getElementById("msg");
-const send=document.getElementById("send");
-const logDiv=document.getElementById("log");
-let pc,dc,ws,localStream;
 
-function log(t){const d=document.createElement("div");d.textContent=t;logDiv.appendChild(d);}
-
-async function startMedia(){
-  localStream=await navigator.mediaDevices.getUserMedia({video:true,audio:true});
-  localVideo.srcObject=localStream;
-}
-function createPeer(){
-  pc=new RTCPeerConnection();
-  localStream.getTracks().forEach(t=>pc.addTrack(t,localStream));
-  pc.ontrack=e=>remoteVideo.srcObject=e.streams[0];
-  dc=pc.createDataChannel("chat");
-  dc.onmessage=e=>log("Собеседник: "+e.data);
-  pc.onicecandidate=e=>{if(e.candidate) ws.send(JSON.stringify({type:"candidate",candidate:e.candidate}));};
-}
-async function makeOffer(){
-  const offer=await pc.createOffer();
-  await pc.setLocalDescription(offer);
-  ws.send(JSON.stringify({type:"offer",sdp:pc.localDescription}));
-}
-async function handleOffer(sdp){
-  await pc.setRemoteDescription(sdp);
-  const ans=await pc.createAnswer();
-  await pc.setLocalDescription(ans);
-  ws.send(JSON.stringify({type:"answer",sdp:pc.localDescription}));
-}
-async function handleAnswer(sdp){await pc.setRemoteDescription(sdp);}
-async function handleCandidate(c){await pc.addIceCandidate(c);}
-function connectWs(r){
-  const proto=location.protocol==="https:"?"wss":"ws";
-  ws=new WebSocket(`${proto}://${location.host}/ws`);
-  ws.onopen=()=>ws.send(JSON.stringify({type:"join",room:r}));
-  ws.onmessage=async ev=>{
-    const m=JSON.parse(ev.data);
-    if(m.type==="joined"&&m.peers>=1) await makeOffer();
-    if(m.type==="offer") await handleOffer(m.sdp);
-    if(m.type==="answer") await handleAnswer(m.sdp);
-    if(m.type==="candidate") await handleCandidate(m.candidate);
+// ---- Polyfill для getUserMedia (старые/нестандартные браузеры) ----
+if (!navigator.mediaDevices) navigator.mediaDevices = {};
+if (!navigator.mediaDevices.getUserMedia) {
+  navigator.mediaDevices.getUserMedia = function (constraints) {
+    const getUserMedia = navigator.webkitGetUserMedia || navigator.mozGetUserMedia;
+    if (!getUserMedia) {
+      return Promise.reject(new Error('getUserMedia not supported in this browser'));
+    }
+    return new Promise((resolve, reject) =>
+      getUserMedia.call(navigator, constraints, resolve, reject)
+    );
   };
 }
-joinBtn.onclick=async()=>{
-  await startMedia();createPeer();connectWs(roomInput.value);
+
+if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
+  alert('Для доступа к камере/микрофону нужен HTTPS. Откройте сайт по https://');
+}
+
+// ---------------------------------------------------------------
+// Основной клиентский код (упрощённый пример)
+const socket = io("https://" + window.location.host);
+
+const joinBtn = document.querySelector("button");
+const roomInput = document.querySelector("input");
+const localVideo = document.createElement("video");
+const remoteVideo = document.createElement("video");
+
+localVideo.autoplay = true;
+remoteVideo.autoplay = true;
+document.body.appendChild(localVideo);
+document.body.appendChild(remoteVideo);
+
+async function startMedia() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+    localVideo.srcObject = stream;
+    return stream;
+  } catch (err) {
+    console.error("Ошибка доступа к камере/микрофону:", err);
+  }
+}
+
+joinBtn.onclick = async () => {
+  const room = roomInput.value;
+  if (!room) return alert("Введите код комнаты");
+
+  const stream = await startMedia();
+  if (!stream) return;
+
+  socket.emit("join", room);
 };
-send.onclick=()=>{if(dc&&dc.readyState==="open"){dc.send(msg.value);log("Вы: "+msg.value);msg.value="";}};
