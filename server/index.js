@@ -17,18 +17,36 @@ app.use(compression());
 app.use(cors());
 app.use(express.json());
 
-// ---------- Simple JSON "DB" ----------
+// ---------- Simple JSON "DB" with safe FS fallback ----------
 const dataDir = path.join(__dirname, '..', 'data');
 const usersFile = path.join(dataDir, 'users.json');
-fs.mkdirSync(dataDir, { recursive: true });
-if (!fs.existsSync(usersFile)) fs.writeFileSync(usersFile, JSON.stringify({ users: [] }, null, 2));
+let memUsers = []; // fallback in-memory
+
+function safeMkdir(dir){
+  try { fs.mkdirSync(dir, { recursive: true }); return true; }
+  catch (e) { console.error('mkdir failed:', e.message); return false; }
+}
+function safeRead(file){
+  try { return fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : null; }
+  catch (e) { console.error('read failed:', e.message); return null; }
+}
+function safeWrite(file, data){
+  try { fs.writeFileSync(file, data); return true; }
+  catch (e) { console.error('write failed:', e.message); return false; }
+}
 
 function loadUsers() {
-  try { return JSON.parse(fs.readFileSync(usersFile, 'utf8')).users || []; }
-  catch { return []; }
+  const txt = safeRead(usersFile);
+  if (txt) {
+    try { return JSON.parse(txt).users || []; }
+    catch { return memUsers; }
+  }
+  return memUsers;
 }
 function saveUsers(users) {
-  fs.writeFileSync(usersFile, JSON.stringify({ users }, null, 2));
+  memUsers = users;
+  if (!safeMkdir(dataDir)) return;
+  safeWrite(usersFile, JSON.stringify({ users }, null, 2));
 }
 function normalizePhone(phone) {
   return String(phone || '').replace(/\D+/g, '');
@@ -60,7 +78,6 @@ app.get('/config', (_req, res) => {
 });
 
 // ---------- Users API ----------
-// Register/update user: { phone, name }
 app.post('/api/register', (req, res) => {
   let { phone, name } = req.body || {};
   phone = normalizePhone(phone);
@@ -80,7 +97,6 @@ app.post('/api/register', (req, res) => {
   res.json({ ok: true, user });
 });
 
-// Search by phone substring
 app.get('/api/users', (req, res) => {
   const q = normalizePhone(req.query.phone || '');
   const users = loadUsers();
@@ -91,7 +107,6 @@ app.get('/api/users', (req, res) => {
   res.json(list);
 });
 
-// Start call between current phone and targetPhone -> returns roomId
 app.post('/api/call/start', (req, res) => {
   const me = normalizePhone(req.body.me);
   const target = normalizePhone(req.body.target);
@@ -101,7 +116,7 @@ app.post('/api/call/start', (req, res) => {
   return res.json({ roomId });
 });
 
-// ---------- Call History (in-memory) ----------
+// ---------- History ----------
 const history = [];
 function addHistoryStart(room) {
   const now = Date.now();
@@ -129,13 +144,14 @@ app.get('/history', (_req, res) => {
 });
 app.delete('/history', (_req, res) => { history.length = 0; res.json({ ok: true }); });
 
-// ---------- WebSocket signaling ----------
-const server = app.listen(PORT, () => {
+// ---------- WS ----------
+const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`VideoCall: HTTP server http://0.0.0.0:${PORT}`);
 });
+const { WebSocketServer } = require('ws');
 const wss = new WebSocketServer({ server, path: '/ws' });
 
-const rooms = new Map();    // room -> Set<ws>
+const rooms = new Map();
 const socketRoom = new WeakMap();
 
 function broadcast(room, payload, except) {
