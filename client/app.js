@@ -1,39 +1,47 @@
-// ---- Polyfill for getUserMedia (for older browsers) ----
+// ---- Polyfill для getUserMedia ----
 if (!navigator.mediaDevices) navigator.mediaDevices = {};
 if (!navigator.mediaDevices.getUserMedia) {
   navigator.mediaDevices.getUserMedia = function (constraints) {
-    const getUserMedia = navigator.webkitGetUserMedia || navigator.mozGetUserMedia;
-    if (!getUserMedia) {
-      return Promise.reject(new Error('getUserMedia not supported in this browser'));
-    }
-    return new Promise((resolve, reject) =>
-      getUserMedia.call(navigator, constraints, resolve, reject)
-    );
+    const gum = navigator.webkitGetUserMedia || navigator.mozGetUserMedia;
+    if (!gum) return Promise.reject(new Error('getUserMedia not supported in this browser'));
+    return new Promise((resolve, reject) => gum.call(navigator, constraints, resolve, reject));
   };
 }
 if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
   console.warn('Для доступа к камере/микрофону нужен HTTPS.');
 }
-// --------------------------------------------------------
 
-const els = {
-  room: document.getElementById('room') || document.querySelector('input'),
-  joinBtn: document.getElementById('joinBtn') || document.querySelector('button'),
-  localVideo: document.getElementById('localVideo') || document.querySelector('video#localVideo'),
-  remoteVideo: document.getElementById('remoteVideo') || document.querySelector('video#remoteVideo'),
-};
+// ----- ЭЛЕМЕНТЫ -----
+const roomInput = document.getElementById('room') || document.querySelector('input');
+const joinBtn   = document.getElementById('joinBtn') || document.querySelector('button');
+const localVideo  = document.getElementById('localVideo')  || document.querySelector('video#localVideo');
+const remoteVideo = document.getElementById('remoteVideo') || document.querySelector('video#remoteVideo');
 
-let pc, ws, localStream;
+// Важно для автозапуска видео в браузерах
+[localVideo, remoteVideo].forEach(v => { if (v) { v.muted = v === localVideo; v.playsInline = true; v.autoplay = true; } });
+
+let ws, pc, localStream;
 let iceServers = [{ urls: 'stun:stun.l.google.com:19302' }];
 
+// Подтянем ICE-конфиг с сервера (если есть)
 fetch('/config').then(r => r.json()).then(cfg => {
   if (cfg && Array.isArray(cfg.iceServers)) iceServers = cfg.iceServers;
-}).catch(()=>{});
+}).catch(() => {});
 
 async function startMedia() {
-  const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-  if (els.localVideo) els.localVideo.srcObject = stream;
-  return stream;
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+    localStream = stream;
+    if (localVideo) {
+      localVideo.srcObject = stream;
+      try { await localVideo.play(); } catch (e) { console.warn('localVideo.play() blocked until user gesture', e); }
+    }
+    console.log('Local stream tracks:', stream.getTracks().map(t => t.kind));
+    return stream;
+  } catch (e) {
+    console.error('Не удалось получить доступ к камере/микрофону:', e);
+    alert('Браузер не дал доступ к камере/микрофону.');
+  }
 }
 
 function connectWs(room) {
@@ -52,13 +60,21 @@ function connectWs(room) {
       await handleCandidate(msg.candidate);
     }
   };
+  ws.onerror = (e) => console.error('WS error', e);
 }
 
 function createPeer() {
   pc = new RTCPeerConnection({ iceServers });
   localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
-  pc.ontrack = (ev) => { if (els.remoteVideo) els.remoteVideo.srcObject = ev.streams[0]; };
-  pc.onicecandidate = (ev) => { if (ev.candidate) ws.send(JSON.stringify({ type: 'candidate', candidate: ev.candidate })); };
+  pc.ontrack = async (ev) => {
+    if (remoteVideo) {
+      remoteVideo.srcObject = ev.streams[0];
+      try { await remoteVideo.play(); } catch(e) { console.warn('remoteVideo.play() blocked', e); }
+    }
+  };
+  pc.onicecandidate = (ev) => {
+    if (ev.candidate) ws.send(JSON.stringify({ type: 'candidate', candidate: ev.candidate }));
+  };
 }
 
 async function makeOffer() {
@@ -72,13 +88,18 @@ async function handleOffer(sdp) {
   await pc.setLocalDescription(answer);
   ws.send(JSON.stringify({ type: 'answer', sdp: pc.localDescription }));
 }
-async function handleAnswer(sdp) { await pc.setRemoteDescription(sdp); }
-async function handleCandidate(c) { try { await pc.addIceCandidate(c); } catch {} }
+async function handleAnswer(sdp) {
+  await pc.setRemoteDescription(sdp);
+}
+async function handleCandidate(c) {
+  try { await pc.addIceCandidate(c); } catch (e) { console.warn('addIceCandidate error', e); }
+}
 
-(els.joinBtn || {}).onclick = async () => {
-  const room = (els.room && els.room.value || '').trim();
+joinBtn && (joinBtn.onclick = async () => {
+  const room = (roomInput && roomInput.value || '').trim();
   if (!room) return alert('Введите код комнаты');
-  localStream = await startMedia();
+  const stream = await startMedia();
+  if (!stream) return;
   createPeer();
   connectWs(room);
-};
+});
