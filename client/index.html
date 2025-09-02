@@ -1,26 +1,30 @@
 <!doctype html>
 <html lang="ru">
 <head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Видеомессенджер</title>
-  <link rel="stylesheet" href="style.css"/>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Видеозвонок 1‑к‑1</title>
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <div class="wrap">
-    <h1>Видеозвонок 1-к-1</h1>
-    <input id="room" placeholder="код комнаты"/>
-    <button id="joinBtn">Подключиться</button>
-    <div class="grid">
-      <div><video id="local" autoplay playsinline muted></video></div>
-      <div><video id="remote" autoplay playsinline></video></div>
+  <header>
+    <h1>Видеозвонок 1‑к‑1</h1>
+    <div class="controls">
+      <input id="room" placeholder="код комнаты" />
+      <button id="joinBtn">Подключиться</button>
     </div>
-    <div>
-      <input id="msg" placeholder="Сообщение"/>
-      <button id="send">Отправить</button>
-      <div id="log"></div>
-    </div>
-  </div>
+  </header>
+
+  <main class="videos">
+    <video id="localVideo" playsinline muted autoplay></video>
+    <video id="remoteVideo" playsinline autoplay></video>
+  </main>
+
+  <footer class="footer">
+    <input id="chatInput" placeholder="Сообщение" />
+    <button id="sendBtn">Отправить</button>
+  </footer>
+
   <script src="app.js"></script>
 </body>
 </html>

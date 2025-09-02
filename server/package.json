@@ -1,11 +1,17 @@
 {
-  "name": "webrtc-messenger",
+  "name": "videocall-server",
   "version": "1.0.0",
-  "main": "index.js",
-  "scripts": { "start": "node index.js" },
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "start": "node index.js"
+  },
   "dependencies": {
+    "compression": "^1.7.4",
+    "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
-    "ws": "^8.17.0"
+    "helmet": "^7.1.0",
+    "ws": "^8.18.0"
   }
 }
