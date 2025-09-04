@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebSocket Test</title>
+    <style>
+        body { font-family: Arial; padding: 20px; background: #f0f0f0; }
+        .log { background: #fff; padding: 15px; margin: 10px 0; border-radius: 5px; }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        button { padding: 10px 20px; margin: 5px; font-size: 16px; }
+    </style>
+</head>
+<body>
+    <h1>🧪 Тест WebSocket VLESS Прокси</h1>
+    
+    <button onclick="testWebSocket()">🔗 Тест WebSocket</button>
+    <button onclick="clearLogs()">🗑️ Очистить логи</button>
+    
+    <div id="logs"></div>
+
+    <script>
+        let ws = null;
+
+        function addLog(message, type = 'info') {
+            const logs = document.getElementById('logs');
+            const log = document.createElement('div');
+            log.className = `log ${type}`;
+            log.innerHTML = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logs.appendChild(log);
+            logs.scrollTop = logs.scrollHeight;
+            console.log(message);
+        }
+
+        function clearLogs() {
+            document.getElementById('logs').innerHTML = '';
+        }
+
+        function testWebSocket() {
+            addLog('🚀 Начинаем тест WebSocket...');
+            
+            if (ws) {
+                ws.close();
+                ws = null;
+            }
+
+            // Тестируем WebSocket прокси
+            const wsUrl = 'wss://8080-ip468ihcy403p6enirr3p-6532622b.e2b.dev';
+            addLog(`🔗 Подключаемся к: ${wsUrl}`);
+            
+            ws = new WebSocket(wsUrl);
+
+            ws.onopen = () => {
+                addLog('✅ WebSocket подключен успешно!', 'success');
+            };
+
+            ws.onmessage = (event) => {
+                try {
+                    const message = JSON.parse(event.data);
+                    addLog(`📨 Получено JSON: ${JSON.stringify(message)}`, 'success');
+                    
+                    if (message.type === 'vless-connected') {
+                        addLog('🎉 VLESS туннель установлен!', 'success');
+                    }
+                } catch (error) {
+                    addLog(`📦 Получены бинарные данные: ${event.data.length} байт`, 'info');
+                }
+            };
+
+            ws.onclose = (event) => {
+                addLog(`🔌 WebSocket закрыт: код ${event.code}, причина: ${event.reason}`);
+            };
+
+            ws.onerror = (error) => {
+                addLog(`❌ WebSocket ошибка: ${error}`, 'error');
+                console.error('WebSocket error:', error);
+            };
+
+            // Автозакрытие через 10 секунд
+            setTimeout(() => {
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    addLog('⏰ Закрываем соединение по таймауту');
+                    ws.close();
+                }
+            }, 10000);
+        }
+    </script>
+</body>
+</html>

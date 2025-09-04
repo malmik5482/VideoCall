@@ -77,10 +77,12 @@ class VLESSClient {
   async connect() {
     return new Promise((resolve, reject) => {
       try {
-        // Connect to WebSocket proxy through the proxy service URL
+        // Попробуем основной WebSocket endpoint с VLESS параметром
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const proxyHost = '8080-ip468ihcy403p6enirr3p-6532622b.e2b.dev';
-        const wsUrl = `${protocol}//${proxyHost}`;
+        const host = window.location.host;
+        const wsUrl = `${protocol}//${host}/ws?type=vless`;
+        
+        console.log(`🌐 Подключаемся через основной WebSocket с VLESS: ${wsUrl}`);
         
         console.log(`🔄 Connecting to VLESS proxy: ${wsUrl}`);
         
@@ -88,8 +90,8 @@ class VLESSClient {
         this.socket.binaryType = 'arraybuffer';
         
         this.socket.onopen = () => {
-          console.log('✅ WebSocket proxy connected, waiting for VLESS tunnel');
-          // The proxy server handles VLESS handshake, we just wait for confirmation
+          console.log('✅ WebSocket прокси подключен, ждем установки VLESS туннеля...');
+          // Прокси сервер автоматически обрабатывает VLESS handshake
         };
         
         this.socket.onmessage = (event) => {
@@ -133,7 +135,8 @@ class VLESSClient {
         
         this.socket.onerror = (error) => {
           this.connected = false;
-          console.error('❌ VLESS connection error:', error);
+          console.error('❌ WebSocket прокси ошибка:', error);
+          console.error('🔗 Проверьте доступность:', wsUrl);
           if (this.onError) this.onError(error);
           reject(error);
         };

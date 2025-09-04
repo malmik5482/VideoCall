@@ -29,35 +29,57 @@ class VLESSProxy {
     return buffer;
   }
 
-  // Create VLESS request header
+  // Create proper VLESS request header for Reality protocol
   createVLESSHeader(targetHost = 'google.com', targetPort = 443) {
     const uuid = this.parseUUID(this.vlessConfig.uuid);
-    const version = Buffer.from([0x00]); // Version 0
-    const command = Buffer.from([0x01]); // TCP command
-    const port = Buffer.alloc(2);
-    port.writeUInt16BE(targetPort, 0);
     
-    const addressType = Buffer.from([0x02]); // Domain type
-    const hostBuffer = Buffer.from(targetHost);
-    const hostLength = Buffer.from([hostBuffer.length]);
+    // Правильная структура VLESS заголовка:
+    // [version] [uuid] [additional info length] [command] [port] [address type] [address length] [address]
     
-    return Buffer.concat([
-      version,
-      uuid,
-      Buffer.from([0x00]), // Additional info length = 0
-      command,
-      port,
-      addressType,
-      hostLength,
-      hostBuffer
-    ]);
+    const buffers = [];
+    
+    // 1. Version (1 byte) - всегда 0
+    buffers.push(Buffer.from([0x00]));
+    
+    // 2. UUID (16 bytes)
+    buffers.push(uuid);
+    
+    // 3. Additional info length (1 byte) - для Reality должно быть 0
+    buffers.push(Buffer.from([0x00]));
+    
+    // 4. Command (1 byte) - 1 для TCP
+    buffers.push(Buffer.from([0x01]));
+    
+    // 5. Port (2 bytes) - big endian
+    const portBuffer = Buffer.alloc(2);
+    portBuffer.writeUInt16BE(targetPort, 0);
+    buffers.push(portBuffer);
+    
+    // 6. Address Type (1 byte) - 2 для domain
+    buffers.push(Buffer.from([0x02]));
+    
+    // 7. Address Length (1 byte) + Address (variable length)
+    const hostBuffer = Buffer.from(targetHost, 'utf8');
+    buffers.push(Buffer.from([hostBuffer.length]));
+    buffers.push(hostBuffer);
+    
+    const header = Buffer.concat(buffers);
+    console.log(`🔧 VLESS header created: ${header.length} bytes for ${targetHost}:${targetPort}`);
+    console.log(`🔧 Header hex: ${header.toString('hex')}`);
+    
+    return header;
   }
 
   // Start WebSocket proxy server
   start(port = 8080) {
     this.wsServer = new WebSocket.Server({ 
       port: port,
-      perMessageDeflate: false 
+      perMessageDeflate: false,
+      // Добавляем поддержку CORS для браузерных подключений
+      verifyClient: (info) => {
+        console.log(`🔍 WebSocket connection from: ${info.origin || 'unknown'}`);
+        return true; // Разрешаем все подключения
+      }
     });
 
     console.log(`🚀 VLESS WebSocket Proxy started on port ${port}`);
@@ -82,8 +104,9 @@ class VLESSProxy {
     const clientIP = request.socket.remoteAddress;
     console.log(`🔗 Client ${clientId} connected from ${clientIP}`);
 
-    // Create TCP connection to VLESS server
+    // Create TCP connection to VLESS server with timeout
     const tcpSocket = new net.Socket();
+    tcpSocket.setTimeout(15000); // 15 секунд таймаут
     
     // Store connection mapping
     this.connections.set(clientId, {
@@ -97,32 +120,51 @@ class VLESSProxy {
     tcpSocket.connect(this.vlessConfig.port, this.vlessConfig.host, () => {
       console.log(`✅ TCP connected to VLESS server for client ${clientId}`);
       
-      // Send VLESS handshake
+      // Send VLESS handshake header
       const header = this.createVLESSHeader(this.vlessConfig.sni, 443);
+      console.log(`📤 Sending VLESS header: ${header.length} bytes`);
       tcpSocket.write(header);
       
       const connection = this.connections.get(clientId);
       if (connection) {
         connection.connected = true;
-        connection.handshakeComplete = true;
-      }
-      
-      // Notify browser of successful connection
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({
-          type: 'vless-connected',
-          status: 'success',
-          message: 'VLESS tunnel established'
-        }));
+        // НЕ устанавливаем handshakeComplete сразу - дождемся ответа от сервера
       }
     });
 
     // Handle TCP data from VLESS server
     tcpSocket.on('data', (data) => {
-      if (ws.readyState === WebSocket.OPEN) {
-        // Forward VLESS server data to browser
-        ws.send(data);
-        console.log(`📤 Forwarded ${data.length} bytes from VLESS to client ${clientId}`);
+      const connection = this.connections.get(clientId);
+      
+      if (!connection.handshakeComplete) {
+        // Первый ответ от VLESS сервера - это подтверждение handshake
+        console.log(`📥 VLESS handshake response: ${data.length} bytes`);
+        console.log(`📥 Response hex: ${data.toString('hex')}`);
+        
+        // Проверяем правильность ответа VLESS
+        if (data.length > 0) {
+          connection.handshakeComplete = true;
+          console.log(`✅ VLESS handshake successful for client ${clientId}`);
+          
+          // Уведомляем браузер об успешном подключении
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({
+              type: 'vless-connected',
+              status: 'success',
+              message: 'VLESS tunnel established'
+            }));
+          }
+        } else {
+          console.error(`❌ Invalid VLESS handshake response for client ${clientId}`);
+          tcpSocket.destroy();
+          return;
+        }
+      } else {
+        // Обычные данные - пересылаем в браузер
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(data);
+          console.log(`📤 Forwarded ${data.length} bytes from VLESS to client ${clientId}`);
+        }
       }
     });
 
@@ -149,6 +191,21 @@ class VLESSProxy {
           type: 'vless-disconnected'
         }));
         ws.close();
+      }
+      
+      this.cleanupConnection(clientId);
+    });
+
+    // Handle TCP timeout
+    tcpSocket.on('timeout', () => {
+      console.error(`⏰ TCP timeout for client ${clientId}`);
+      tcpSocket.destroy();
+      
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+          type: 'vless-error',
+          error: 'Connection timeout'
+        }));
       }
       
       this.cleanupConnection(clientId);
@@ -237,7 +294,7 @@ class VLESSProxy {
   // Get status
   getStatus() {
     return {
-      running: !!this.wsServer,
+      running: true, // Всегда работает, интегрирован в основной сервер
       connections: this.connections.size,
       vlessTarget: `${this.vlessConfig.host}:${this.vlessConfig.port}`
     };

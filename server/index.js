@@ -1,6 +1,7 @@
 const path = require('path');
 const express = require('express');
 const cors = require('cors');
+const crypto = require('crypto');
 const { WebSocketServer } = require('ws');
 const VLESSProxy = require('./vless-proxy');
 
@@ -28,6 +29,19 @@ let vlessProxy = null;
 app.disable('x-powered-by');
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
+
+// Debug middleware for logging requests
+app.use((req, res, next) => {
+  if (req.url.includes('vless-ws') || req.headers.upgrade) {
+    console.log(`🔍 WebSocket upgrade request: ${req.method} ${req.url}`);
+    console.log(`🔍 Headers:`, {
+      upgrade: req.headers.upgrade,
+      connection: req.headers.connection,
+      'sec-websocket-key': req.headers['sec-websocket-key'] ? 'present' : 'missing'
+    });
+  }
+  next();
+});
 
 // Serve static files
 const clientDir = path.join(__dirname, '..', 'client');
@@ -742,10 +756,10 @@ const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`🧊 ICE servers: ${getICEConfig().iceServers.length} configured`);
   console.log(`🇷🇺 Russian optimization: ENABLED`);
   console.log(`🔄 TURN server: 94.198.218.189:3478 (webrtc)`);
-  console.log(`🛡️ VLESS proxy port: ${VLESS_PROXY_PORT}`);
+  console.log(`🛡️ WebSocket: /ws (supports VLESS with ?type=vless)`);
   console.log(`🌐 Public URL: https://malmik5482-videocall-fc69.twc1.net`);
   
-  // Auto-start VLESS proxy
+  // Initialize VLESS proxy (without starting separate server)
   try {
     vlessProxy = new VLESSProxy({
       vlessHost: '95.181.173.120',
@@ -753,11 +767,10 @@ const server = app.listen(PORT, '0.0.0.0', () => {
       uuid: '89462a65-fafa-4f9a-9efd-2be01a001778'
     });
     
-    vlessProxy.start(VLESS_PROXY_PORT);
-    console.log(`🛡️ VLESS proxy auto-started on port ${VLESS_PROXY_PORT}`);
+    console.log(`🛡️ VLESS proxy initialized and integrated with main server`);
     
   } catch (error) {
-    console.error('❌ Failed to auto-start VLESS proxy:', error.message);
+    console.error('❌ Failed to initialize VLESS proxy:', error.message);
   }
 });
 
@@ -768,6 +781,8 @@ const wss = new WebSocketServer({
   clientTracking: true,
   maxPayload: 16 * 1024
 });
+
+// VLESS обрабатывается в основном WebSocket сервере
 
 const rooms = new Map();
 const socketRoom = new WeakMap();
@@ -939,6 +954,22 @@ wss.on('connection', (ws, req) => {
   const clientIP = req.connection.remoteAddress;
   const userAgent = req.headers['user-agent'] || '';
   const isRussian = detectRussianUser(clientIP, userAgent);
+  const url = new URL(req.url, `http://${req.headers.host}`);
+  const isVlessRequest = url.searchParams.get('type') === 'vless';
+  
+  if (isVlessRequest) {
+    console.log(`🛡️ VLESS WebSocket connection from ${clientIP} ${isRussian ? '[RU]' : '[INT]'}`);
+    
+    // Обрабатываем как VLESS подключение
+    if (vlessProxy) {
+      vlessProxy.handleWebSocketConnection(ws, crypto.randomUUID(), req);
+      return; // Прекращаем обычную обработку WebSocket
+    } else {
+      console.error('❌ VLESS proxy not available');
+      ws.close(1011, 'VLESS proxy not available');
+      return;
+    }
+  }
   
   console.log(`🔌 New WebSocket connection from ${clientIP} ${isRussian ? '[RU]' : '[INT]'}`);
   
