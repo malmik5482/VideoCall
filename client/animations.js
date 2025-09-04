@@ -1,5 +1,61 @@
 // ====== КОСМИЧЕСКИЕ АНИМАЦИИ CosmosChat ======
 
+// Класс для переходов между экранами
+class ScreenTransitions {
+    static async morphTransition(fromElement, toElement) {
+        if (!fromElement || !toElement) {
+            console.warn('⚠️ Элементы для перехода не найдены');
+            return;
+        }
+        
+        // Скрываем исходный элемент
+        if (fromElement) {
+            fromElement.style.transition = 'opacity 0.3s ease-out, transform 0.3s ease-out';
+            fromElement.style.opacity = '0';
+            fromElement.style.transform = 'scale(0.95)';
+            
+            await new Promise(resolve => setTimeout(resolve, 300));
+            fromElement.classList.add('hidden');
+        }
+        
+        // Показываем целевой элемент
+        if (toElement) {
+            toElement.classList.remove('hidden');
+            toElement.style.opacity = '0';
+            toElement.style.transform = 'scale(0.95)';
+            
+            // Форсируем перерисовку
+            toElement.offsetHeight;
+            
+            toElement.style.transition = 'opacity 0.3s ease-out, transform 0.3s ease-out';
+            toElement.style.opacity = '1';
+            toElement.style.transform = 'scale(1)';
+            
+            await new Promise(resolve => setTimeout(resolve, 300));
+        }
+    }
+    
+    static async fadeTransition(fromElement, toElement) {
+        if (fromElement) {
+            fromElement.style.transition = 'opacity 0.3s ease-out';
+            fromElement.style.opacity = '0';
+            await new Promise(resolve => setTimeout(resolve, 300));
+            fromElement.classList.add('hidden');
+        }
+        
+        if (toElement) {
+            toElement.classList.remove('hidden');
+            toElement.style.opacity = '0';
+            toElement.offsetHeight;
+            toElement.style.transition = 'opacity 0.3s ease-out';
+            toElement.style.opacity = '1';
+        }
+    }
+}
+
+// Делаем класс доступным глобально
+window.ScreenTransitions = ScreenTransitions;
+
 class CosmicAnimations {
     constructor() {
         this.canvas = null;
@@ -148,9 +204,8 @@ class CosmicAnimations {
     }
 }
 
-// Система переходов между экранами
-class ScreenTransitions {
-    static fadeIn(element, duration = 600) {
+// Дополнительные методы для ScreenTransitions
+ScreenTransitions.fadeIn = function(element, duration = 600) {
         return new Promise(resolve => {
             element.style.opacity = '0';
             element.style.transform = 'translateY(30px) scale(0.95)';
@@ -173,9 +228,9 @@ class ScreenTransitions {
             
             animation.onfinish = () => resolve();
         });
-    }
+    };
 
-    static fadeOut(element, duration = 400) {
+ScreenTransitions.fadeOut = function(element, duration = 400) {
         return new Promise(resolve => {
             const animation = element.animate([
                 { 
@@ -197,9 +252,9 @@ class ScreenTransitions {
                 resolve();
             };
         });
-    }
+    };
 
-    static morphTransition(fromElement, toElement, duration = 800) {
+ScreenTransitions.morphTransition2 = function(fromElement, toElement, duration = 800) {
         return new Promise(resolve => {
             // Эффект морфинга между элементами
             const morphContainer = document.createElement('div');
@@ -250,8 +305,7 @@ class ScreenTransitions {
                 };
             };
         });
-    }
-}
+    };
 
 // Система уведомлений
 class NotificationSystem {

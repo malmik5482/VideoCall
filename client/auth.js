@@ -444,16 +444,43 @@ class AuthSystem {
     }
 
     async enterApp(hasPermissions = true) {
+        console.log('🚀 Вход в приложение...');
+        
         // Скрываем экраны авторизации
         const loadingScreen = document.getElementById('loadingScreen');
         const authScreen = document.getElementById('authScreen');
         const appContainer = document.getElementById('appContainer');
         
-        // Анимируем переход
-        await ScreenTransitions.morphTransition(
-            authScreen.classList.contains('hidden') ? loadingScreen : authScreen,
-            appContainer
-        );
+        // Скрываем загрузочный экран и экран авторизации
+        if (loadingScreen) {
+            loadingScreen.classList.add('hidden');
+        }
+        if (authScreen) {
+            authScreen.classList.add('hidden');
+        }
+        
+        // КРИТИЧНО: Показываем основное приложение
+        if (appContainer) {
+            appContainer.classList.remove('hidden');
+            console.log('✅ Основное приложение отображено');
+            
+            // Добавляем анимацию появления
+            appContainer.style.opacity = '0';
+            appContainer.style.transform = 'scale(0.95)';
+            
+            // Форсируем перерисовку
+            appContainer.offsetHeight;
+            
+            // Анимируем появление
+            appContainer.style.transition = 'opacity 0.5s ease-out, transform 0.5s ease-out';
+            appContainer.style.opacity = '1';
+            appContainer.style.transform = 'scale(1)';
+        } else {
+            console.error('❌ appContainer не найден!');
+        }
+        
+        // Небольшая задержка для анимации
+        await this.delay(300);
         
         // Инициализируем приложение
         this.initializeApp(hasPermissions);
