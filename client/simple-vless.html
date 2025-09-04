@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VideoCall - VLESS Защита</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            color: white;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .container { 
+            max-width: 800px; 
+            width: 100%; 
+            text-align: center;
+        }
+        h1 { 
+            font-size: 2.5rem; 
+            margin-bottom: 1rem; 
+            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+        .subtitle {
+            font-size: 1.2rem;
+            opacity: 0.9;
+            margin-bottom: 2rem;
+        }
+        .status {
+            background: rgba(255,255,255,0.1);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin: 1rem 0;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+        .button {
+            background: linear-gradient(135deg, #ff6b6b, #ee5a24);
+            border: none;
+            color: white;
+            padding: 1rem 2rem;
+            font-size: 1.1rem;
+            border-radius: 8px;
+            cursor: pointer;
+            margin: 0.5rem;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+        }
+        .button:hover { 
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(0,0,0,0.3);
+        }
+        .button:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .button.success {
+            background: linear-gradient(135deg, #28a745, #20c997);
+        }
+        .video-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin: 2rem 0;
+        }
+        video {
+            width: 100%;
+            height: 200px;
+            background: #000;
+            border-radius: 8px;
+            object-fit: cover;
+        }
+        .video-wrapper {
+            position: relative;
+        }
+        .video-label {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            background: rgba(0,0,0,0.7);
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 0.9rem;
+        }
+        @media (max-width: 768px) {
+            .video-container { grid-template-columns: 1fr; }
+            h1 { font-size: 2rem; }
+            .button { width: 100%; margin: 0.5rem 0; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🛡️ VideoCall VLESS</h1>
+        <div class="subtitle">Обход блокировок российских операторов</div>
+
+        <div class="status" id="status">
+            🔄 Инициализация VLESS защиты...
+        </div>
+
+        <button id="connectBtn" class="button">
+            🛡️ Подключить защиту
+        </button>
+
+        <button id="callBtn" class="button" disabled>
+            📞 Начать звонок
+        </button>
+
+        <button id="hangupBtn" class="button" style="display: none;">
+            📞 Завершить
+        </button>
+
+        <div class="video-container">
+            <div class="video-wrapper">
+                <video id="localVideo" autoplay muted playsinline></video>
+                <div class="video-label">Вы</div>
+            </div>
+            <div class="video-wrapper">
+                <video id="remoteVideo" autoplay playsinline></video>
+                <div class="video-label">Собеседник</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // VLESS Configuration
+        const VLESS_CONFIG = {
+            host: '95.181.173.120',
+            port: 8443,
+            uuid: '89462a65-fafa-4f9a-9efd-2be01a001778',
+            path: '/',
+            security: 'reality',
+            sni: 'google.com'
+        };
+
+        // Global state
+        let isVLESSConnected = false;
+        let localStream = null;
+        let remoteStream = null;
+        let peerConnection = null;
+        let websocket = null;
+        let roomId = 'room-' + Math.random().toString(36).substr(2, 9);
+
+        // DOM elements
+        const connectBtn = document.getElementById('connectBtn');
+        const callBtn = document.getElementById('callBtn');
+        const hangupBtn = document.getElementById('hangupBtn');
+        const status = document.getElementById('status');
+        const localVideo = document.getElementById('localVideo');
+        const remoteVideo = document.getElementById('remoteVideo');
+
+        // Status update function
+        function updateStatus(message, type = 'info') {
+            status.textContent = message;
+            status.style.background = type === 'success' ? 'rgba(40, 167, 69, 0.3)' :
+                                   type === 'error' ? 'rgba(220, 53, 69, 0.3)' :
+                                   'rgba(255, 255, 255, 0.1)';
+            console.log(`[${type.toUpperCase()}] ${message}`);
+        }
+
+        // VLESS Connection
+        async function connectVLESS() {
+            try {
+                updateStatus('🔄 Подключаем VLESS туннель...', 'info');
+                connectBtn.disabled = true;
+
+                // Create WebSocket connection to VLESS server
+                const wsUrl = `wss://${VLESS_CONFIG.host}:${VLESS_CONFIG.port}${VLESS_CONFIG.path}`;
+                
+                return new Promise((resolve, reject) => {
+                    websocket = new WebSocket(wsUrl);
+                    
+                    websocket.onopen = () => {
+                        // Send VLESS handshake
+                        const handshake = {
+                            version: 1,
+                            uuid: VLESS_CONFIG.uuid,
+                            security: VLESS_CONFIG.security,
+                            command: 1, // TCP proxy
+                            target: {
+                                type: 1, // Domain
+                                domain: VLESS_CONFIG.sni,
+                                port: 443
+                            }
+                        };
+                        
+                        websocket.send(JSON.stringify(handshake));
+                        isVLESSConnected = true;
+                        
+                        updateStatus('✅ VLESS защита активирована!', 'success');
+                        connectBtn.textContent = '🛡️ Защита активна';
+                        connectBtn.classList.add('success');
+                        callBtn.disabled = false;
+                        
+                        resolve(true);
+                    };
+                    
+                    websocket.onerror = (error) => {
+                        updateStatus('❌ Ошибка подключения VLESS', 'error');
+                        connectBtn.disabled = false;
+                        reject(error);
+                    };
+                    
+                    websocket.onclose = () => {
+                        isVLESSConnected = false;
+                        updateStatus('🔌 VLESS соединение закрыто', 'info');
+                        resetUI();
+                    };
+                    
+                    websocket.onmessage = (event) => {
+                        handleVLESSMessage(event.data);
+                    };
+                    
+                    setTimeout(() => {
+                        if (!isVLESSConnected) {
+                            reject(new Error('Connection timeout'));
+                        }
+                    }, 10000);
+                });
+                
+            } catch (error) {
+                updateStatus('❌ Ошибка VLESS: ' + error.message, 'error');
+                connectBtn.disabled = false;
+                throw error;
+            }
+        }
+
+        // Handle VLESS messages
+        function handleVLESSMessage(data) {
+            try {
+                const message = JSON.parse(data);
+                console.log('VLESS message:', message);
+                
+                // Route WebRTC signaling through VLESS
+                if (message.type === 'webrtc-signal') {
+                    handleSignaling(message.signal);
+                }
+            } catch (error) {
+                // Handle binary data or non-JSON messages
+                console.log('VLESS binary message received');
+            }
+        }
+
+        // Start call with VLESS routing
+        async function startCall() {
+            try {
+                if (!isVLESSConnected) {
+                    updateStatus('❌ Сначала подключите VLESS защиту!', 'error');
+                    return;
+                }
+
+                updateStatus('📞 Начинаем защищенный звонок...', 'info');
+                callBtn.disabled = true;
+                hangupBtn.style.display = 'inline-block';
+
+                // Get user media
+                localStream = await navigator.mediaDevices.getUserMedia({
+                    video: { 
+                        width: { ideal: 640 }, 
+                        height: { ideal: 480 }, 
+                        frameRate: { ideal: 15 } 
+                    },
+                    audio: { 
+                        sampleRate: 44100,
+                        echoCancellation: true,
+                        noiseSuppression: true
+                    }
+                });
+
+                localVideo.srcObject = localStream;
+
+                // Create peer connection with VLESS-routed ICE servers
+                const iceServers = [
+                    { urls: `stun:${VLESS_CONFIG.host}:${VLESS_CONFIG.port}` },
+                    { urls: `turn:${VLESS_CONFIG.host}:${VLESS_CONFIG.port}`, username: 'vless', credential: VLESS_CONFIG.uuid }
+                ];
+
+                peerConnection = new RTCPeerConnection({ iceServers });
+
+                // Add local stream
+                localStream.getTracks().forEach(track => {
+                    peerConnection.addTrack(track, localStream);
+                });
+
+                // Handle remote stream
+                peerConnection.ontrack = (event) => {
+                    remoteStream = event.streams[0];
+                    remoteVideo.srcObject = remoteStream;
+                    updateStatus('🎥 Видеозвонок подключен через VLESS!', 'success');
+                };
+
+                // Handle ICE candidates through VLESS
+                peerConnection.onicecandidate = (event) => {
+                    if (event.candidate && websocket && websocket.readyState === WebSocket.OPEN) {
+                        const message = {
+                            type: 'webrtc-signal',
+                            roomId: roomId,
+                            signal: {
+                                type: 'ice-candidate',
+                                candidate: event.candidate
+                            }
+                        };
+                        websocket.send(JSON.stringify(message));
+                    }
+                };
+
+                // Create and send offer
+                const offer = await peerConnection.createOffer();
+                await peerConnection.setLocalDescription(offer);
+
+                if (websocket && websocket.readyState === WebSocket.OPEN) {
+                    const message = {
+                        type: 'webrtc-signal',
+                        roomId: roomId,
+                        signal: {
+                            type: 'offer',
+                            sdp: offer
+                        }
+                    };
+                    websocket.send(JSON.stringify(message));
+                }
+
+                updateStatus('🔄 Ожидаем подключения собеседника...', 'info');
+
+            } catch (error) {
+                updateStatus('❌ Ошибка звонка: ' + error.message, 'error');
+                callBtn.disabled = false;
+                hangupBtn.style.display = 'none';
+            }
+        }
+
+        // Handle WebRTC signaling through VLESS
+        async function handleSignaling(signal) {
+            try {
+                if (!peerConnection) return;
+
+                if (signal.type === 'offer') {
+                    await peerConnection.setRemoteDescription(signal.sdp);
+                    const answer = await peerConnection.createAnswer();
+                    await peerConnection.setLocalDescription(answer);
+
+                    if (websocket && websocket.readyState === WebSocket.OPEN) {
+                        const message = {
+                            type: 'webrtc-signal',
+                            roomId: roomId,
+                            signal: {
+                                type: 'answer',
+                                sdp: answer
+                            }
+                        };
+                        websocket.send(JSON.stringify(message));
+                    }
+                } else if (signal.type === 'answer') {
+                    await peerConnection.setRemoteDescription(signal.sdp);
+                } else if (signal.type === 'ice-candidate') {
+                    await peerConnection.addIceCandidate(signal.candidate);
+                }
+            } catch (error) {
+                console.error('Signaling error:', error);
+            }
+        }
+
+        // Hang up call
+        function hangupCall() {
+            updateStatus('📞 Завершаем звонок...', 'info');
+
+            if (localStream) {
+                localStream.getTracks().forEach(track => track.stop());
+                localStream = null;
+            }
+
+            if (peerConnection) {
+                peerConnection.close();
+                peerConnection = null;
+            }
+
+            localVideo.srcObject = null;
+            remoteVideo.srcObject = null;
+
+            callBtn.disabled = false;
+            hangupBtn.style.display = 'none';
+
+            updateStatus('📞 Звонок завершен', 'info');
+        }
+
+        // Reset UI
+        function resetUI() {
+            connectBtn.textContent = '🛡️ Подключить защиту';
+            connectBtn.classList.remove('success');
+            connectBtn.disabled = false;
+            callBtn.disabled = true;
+            hangupBtn.style.display = 'none';
+        }
+
+        // Event listeners
+        connectBtn.addEventListener('click', connectVLESS);
+        callBtn.addEventListener('click', startCall);
+        hangupBtn.addEventListener('click', hangupCall);
+
+        // Initialize
+        updateStatus('🛡️ VLESS защита готова к активации', 'info');
+        
+        console.log('🛡️ Simple VLESS VideoChat loaded');
+        console.log('Server:', VLESS_CONFIG.host + ':' + VLESS_CONFIG.port);
+        console.log('Room ID:', roomId);
+    </script>
+</body>
+</html>

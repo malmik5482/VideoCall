@@ -38,6 +38,11 @@ app.get('/vless', (req, res) => {
   res.sendFile(path.join(clientDir, 'vless-videochat.html'));
 });
 
+// Simple VLESS route
+app.get('/simple', (req, res) => {
+  res.sendFile(path.join(clientDir, 'simple-vless.html'));
+});
+
 // ---- Enhanced ICE Configuration for Russia with aggressive optimization ----
 function getICEConfig() {
   // Оптимизированная конфигурация для российских сетей

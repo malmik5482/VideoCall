@@ -1,347 +1,299 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ru">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
-    <title>VideoChat Pro - Видеозвонки нового поколения</title>
-    <link rel="stylesheet" href="style.css" />
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  </head>
-  <body>
-    <!-- Loading Screen -->
-    <div id="loadingScreen" class="loading-screen">
-      <div class="loading-cube">
-        <div class="cube-face front"></div>
-        <div class="cube-face back"></div>
-        <div class="cube-face left"></div>
-        <div class="cube-face right"></div>
-        <div class="cube-face top"></div>
-        <div class="cube-face bottom"></div>
-      </div>
-      <p>Инициализация VideoChat Pro...</p>
-    </div>
-
-    <!-- Main App -->
-    <div id="app" class="app hidden">
-      <!-- Header -->
-      <header class="header">
-        <div class="header-content">
-          <div class="header-left">
-            <div class="logo">
-              <div class="logo-icon"></div>
-              <h1>VideoChat Pro</h1>
-            </div>
-            <div class="connection-status" id="connectionStatus">
-              <div class="status-dot"></div>
-              <span>Подключение...</span>
-            </div>
-          </div>
-          <div class="header-right">
-            <button class="icon-btn" id="settingsBtn" title="Настройки">
-              <svg viewBox="0 0 24 24" fill="currentColor">
-                <path d="M12 15.5A3.5 3.5 0 0 1 8.5 12A3.5 3.5 0 0 1 12 8.5a3.5 3.5 0 0 1 3.5 3.5 3.5 3.5 0 0 1-3.5 3.5m7.43-2.53c.04-.32.07-.64.07-.97 0-.33-.03-.66-.07-1l2.11-1.63c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.31-.61-.22l-2.49 1c-.52-.39-1.06-.73-1.69-.98l-.37-2.65A.506.506 0 0 0 14 2h-4c-.25 0-.46.18-.5.42l-.37 2.65c-.63.25-1.17.59-1.69.98l-2.49-1c-.22-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64L4.57 11c-.04.34-.07.67-.07 1 0 .33.03.65.07.97L2.46 14.6c-.19.15-.24.42-.12.64l2 3.46c.12.22.39.31.61.22l2.49-1c.52.39 1.06.73 1.69.98l.37 2.65c.04.24.25.42.5.42h4c.25 0 .46-.18.5-.42l.37-2.65c.63-.25 1.17-.59 1.69-.98l2.49 1c.22.09.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.63Z"/>
-              </svg>
-            </button>
-            <button class="icon-btn" id="historyBtn" title="История">
-              <svg viewBox="0 0 24 24" fill="currentColor">
-                <path d="M13.5 8H12v5l4.28 2.54.72-1.21-3.5-2.08V8M13 3c-4.97 0-9 4.03-9 9H1l4 4 4-4H6c0-3.86 3.14-7 7-7s7 3.14 7 7-3.14 7-7 7c-1.93 0-3.68-.79-4.95-2.05l-1.42 1.42C8.32 19.06 10.56 20 13 20c4.97 0 9-4.03 9-9s-4.03-9-9-9"/>
-              </svg>
-            </button>
-          </div>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VideoCall - Защищенные видеозвонки</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .container { 
+            max-width: 600px; 
+            width: 100%; 
+            text-align: center;
+            background: rgba(255,255,255,0.1);
+            backdrop-filter: blur(20px);
+            border-radius: 20px;
+            padding: 3rem;
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+        h1 { 
+            font-size: 3rem; 
+            margin-bottom: 1rem;
+            text-shadow: 0 4px 8px rgba(0,0,0,0.3);
+        }
+        .subtitle {
+            font-size: 1.3rem;
+            opacity: 0.9;
+            margin-bottom: 3rem;
+            line-height: 1.6;
+        }
+        .status {
+            background: rgba(255,255,255,0.2);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin: 2rem 0;
+            font-size: 1.1rem;
+        }
+        .button {
+            background: linear-gradient(135deg, #ff6b6b, #ee5a24);
+            border: none;
+            color: white;
+            padding: 1.2rem 2.5rem;
+            font-size: 1.2rem;
+            font-weight: 600;
+            border-radius: 12px;
+            cursor: pointer;
+            margin: 1rem;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+            min-width: 250px;
+        }
+        .button:hover { 
+            transform: translateY(-3px);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+        }
+        .button:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .button.success {
+            background: linear-gradient(135deg, #28a745, #20c997);
+        }
+        .button.call {
+            background: linear-gradient(135deg, #28a745, #20c997);
+            font-size: 1.3rem;
+            padding: 1.5rem 3rem;
+        }
+        .video-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin: 2rem 0;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+        video {
+            width: 100%;
+            height: 250px;
+            background: #000;
+            object-fit: cover;
+        }
+        .video-wrapper {
+            position: relative;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+        .video-label {
+            position: absolute;
+            bottom: 15px;
+            left: 15px;
+            background: rgba(0,0,0,0.8);
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-weight: 600;
+        }
+        .room-info {
+            background: rgba(255,255,255,0.15);
+            border-radius: 8px;
+            padding: 1rem;
+            margin: 1rem 0;
+            font-size: 0.9rem;
+        }
+        @media (max-width: 768px) {
+            .video-container { grid-template-columns: 1fr; }
+            h1 { font-size: 2.5rem; }
+            .button { width: 100%; margin: 0.5rem 0; min-width: auto; }
+            .container { padding: 2rem 1.5rem; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🛡️ VideoCall</h1>
+        <div class="subtitle">
+            Защищенные видеозвонки с обходом блокировок<br>
+            <strong>Специально для российских мобильных сетей</strong>
         </div>
-      </header>
 
-      <!-- Join Screen -->
-      <div id="joinScreen" class="join-screen">
-        <div class="join-container">
-          <div class="join-card">
-            <div class="join-header">
-              <h2>Присоединиться к звонку</h2>
-              <p>Введите код комнаты для подключения</p>
-            </div>
-            <div class="join-form">
-              <div class="input-group">
-                <input id="roomInput" type="text" placeholder="Код комнаты" autocomplete="off" />
-                <button id="generateRoomBtn" class="generate-btn" title="Создать случайный код">
-                  <svg viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
-                  </svg>
-                </button>
-              </div>
-              <div class="media-preview">
-                <video id="previewVideo" autoplay muted playsinline></video>
-                <div class="preview-controls">
-                  <button id="toggleVideoBtn" class="control-btn">
-                    <svg viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/>
-                    </svg>
-                  </button>
-                  <button id="toggleAudioBtn" class="control-btn">
-                    <svg viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M12 2c1.1 0 2 .9 2 2v6c0 1.1-.9 2-2 2s-2-.9-2-2V4c0-1.1.9-2 2-2zm5.3 6.7c.4-.4 1-.4 1.4 0 .4.4.4 1 0 1.4-1.27 1.27-2.76 2.13-4.4 2.55v2.2c2.89-.86 5-3.54 5-6.75 0-.57-.43-1-.75-1s-1 .43-1 1c0 2.21-1.79 4-4 4s-4-1.79-4-4c0-.57-.43-1-1-1s-1 .43-1 1c0 3.21 2.11 5.89 5 6.75v2.2c-1.64-.42-3.13-1.28-4.4-2.55-.4-.4-1-.4-1.4 0-.4.4-.4 1 0 1.4 1.52 1.52 3.55 2.43 5.8 2.43s4.28-.91 5.8-2.43z"/>
-                    </svg>
-                  </button>
-                </div>
-              </div>
-              <button id="joinBtn" class="join-btn">
-                <span>Подключиться</span>
-                <svg viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M8 5v14l11-7z"/>
-                </svg>
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Call Screen -->
-      <div id="callScreen" class="call-screen hidden">
-        <div class="video-container">
-          <div class="video-grid">
-            <div class="video-wrapper remote-video-wrapper">
-              <video id="remoteVideo" autoplay playsinline></video>
-              <div class="video-info">
-                <span id="remoteUserName">Собеседник</span>
-                <div class="connection-indicator" id="connectionIndicator">
-                  <div class="signal-bars">
-                    <div class="bar"></div>
-                    <div class="bar"></div>
-                    <div class="bar"></div>
-                    <div class="bar"></div>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div class="video-wrapper local-video-wrapper">
-              <video id="localVideo" autoplay muted playsinline></video>
-              <div class="video-controls">
-                <button id="switchCameraBtn" class="mini-control-btn" title="Переключить камеру">
-                  <svg viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M20 4h-3.17L15 2H9L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm-5 11.5V13H9v2.5L5.5 12 9 8.5V11h6V8.5L18.5 12 15 15.5z"/>
-                  </svg>
-                </button>
-              </div>
-            </div>
-          </div>
+        <div class="status" id="status">
+            🔄 Инициализация защищенного соединения...
         </div>
 
-        <!-- Call Controls -->
-        <div class="call-controls">
-          <div class="controls-container">
-            <button id="videoToggle" class="control-btn video-on">
-              <svg class="video-on-icon" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/>
-              </svg>
-              <svg class="video-off-icon" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M21 6.5l-4 4V7c0-.55-.45-1-1-1H9.82L21 17.18V6.5zM3.27 2L2 3.27 4.73 6H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.21 0 .39-.08.54-.18L19.73 21 21 19.73 3.27 2z"/>
-              </svg>
-            </button>
-
-            <button id="audioToggle" class="control-btn audio-on">
-              <svg class="audio-on-icon" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M12 2c1.1 0 2 .9 2 2v6c0 1.1-.9 2-2 2s-2-.9-2-2V4c0-1.1.9-2 2-2zm5.3 6.7c.4-.4 1-.4 1.4 0 .4.4.4 1 0 1.4-1.27 1.27-2.76 2.13-4.4 2.55v2.2c2.89-.86 5-3.54 5-6.75 0-.57-.43-1-.75-1s-1 .43-1 1c0 2.21-1.79 4-4 4s-4-1.79-4-4c0-.57-.43-1-1-1s-1 .43-1 1c0 3.21 2.11 5.89 5 6.75v2.2c-1.64-.42-3.13-1.28-4.4-2.55-.4-.4-1-.4-1.4 0-.4.4-.4 1 0 1.4 1.52 1.52 3.55 2.43 5.8 2.43s4.28-.91 5.8-2.43z"/>
-              </svg>
-              <svg class="audio-off-icon" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M19 11h-1.7c0 .74-.16 1.43-.43 2.05l1.23 1.23c.56-.98.9-2.09.9-3.28zm-4.02.17c0-.06.02-.11.02-.17V4c0-1.66-1.34-3-3-3S9 2.34 9 4v.18l5.98 5.99zM4.27 3L3 4.27l6.01 6.01V11c0 1.66 1.33 3 2.99 3 .22 0 .44-.03.65-.08l1.66 1.66c-.71.33-1.5.52-2.31.52-2.76 0-5.3-2.1-5.3-5.1H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c.91-.13 1.77-.45 2.54-.9L19.73 21 21 19.73 4.27 3z"/>
-              </svg>
-            </button>
-
-            <button id="screenShareToggle" class="control-btn">
-              <svg viewBox="0 0 24 24" fill="currentColor">
-                <path d="M20 18c1.1 0 1.99-.9 1.99-2L22 6c0-1.11-.9-2-2-2H4c-1.11 0-2 .89-2 2v10c0 1.1.89 2 2 2H0v2h24v-2h-4zM4 6h16v10H4V6z"/>
-              </svg>
-            </button>
-
-            <button id="chatToggle" class="control-btn">
-              <svg viewBox="0 0 24 24" fill="currentColor">
-                <path d="M20 2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h4v3c0 .6.4 1 1 1 .2 0 .5-.1.7-.3L14.6 18H20c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-7 12H7v-2h6v2zm3-4H7V8h9v2z"/>
-              </svg>
-            </button>
-
-            <button id="hangupBtn" class="control-btn hangup-btn">
-              <svg viewBox="0 0 24 24" fill="currentColor">
-                <path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08c-.18-.17-.29-.42-.29-.7 0-.28.11-.53.29-.71C3.34 8.78 7.46 7 12 7s8.66 1.78 11.71 4.67c.18.18.29.43.29.71 0 .28-.11.53-.29.7l-2.48 2.48c-.18.18-.43.29-.71.29-.27 0-.52-.1-.7-.28-.79-.73-1.68-1.36-2.66-1.85-.33-.16-.56-.5-.56-.9v-3.1C15.15 9.25 13.6 9 12 9z"/>
-              </svg>
-            </button>
-          </div>
-
-          <div class="call-info">
-            <span id="callDuration">00:00</span>
-            <span id="roomCode"></span>
-          </div>
-        </div>
-      </div>
-
-      <!-- Chat Panel -->
-      <div id="chatPanel" class="chat-panel">
-        <div class="chat-header">
-          <h3>Чат</h3>
-          <button id="closeChatBtn" class="close-btn">
-            <svg viewBox="0 0 24 24" fill="currentColor">
-              <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
-            </svg>
-          </button>
-        </div>
-        <div class="chat-messages" id="chatMessages"></div>
-        <div class="chat-input">
-          <input type="text" id="chatInput" placeholder="Введите сообщение..." />
-          <button id="sendMessageBtn">
-            <svg viewBox="0 0 24 24" fill="currentColor">
-              <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
-            </svg>
-          </button>
-        </div>
-      </div>
-
-      <!-- Settings Panel -->
-      <div id="settingsPanel" class="settings-panel">
-        <div class="settings-header">
-          <h3>Настройки</h3>
-          <button id="closeSettingsBtn" class="close-btn">
-            <svg viewBox="0 0 24 24" fill="currentColor">
-              <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
-            </svg>
-          </button>
-        </div>
-        <div class="settings-content">
-          <div class="setting-group">
-            <h4>Качество видео</h4>
-            <div class="radio-group">
-              <label class="radio-label">
-                <input type="radio" name="quality" value="hd" checked />
-                <span class="radio-custom"></span>
-                HD (720p)
-              </label>
-              <label class="radio-label">
-                <input type="radio" name="quality" value="fhd" />
-                <span class="radio-custom"></span>
-                Full HD (1080p)
-              </label>
-              <label class="radio-label">
-                <input type="radio" name="quality" value="lite" />
-                <span class="radio-custom"></span>
-                Эконом (480p)
-              </label>
-            </div>
-          </div>
-          <div class="setting-group">
-            <h4>Аудио устройства</h4>
-            <select id="audioInputSelect" class="device-select">
-              <option>Выберите микрофон...</option>
-            </select>
-            <select id="audioOutputSelect" class="device-select">
-              <option>Выберите динамики...</option>
-            </select>
-          </div>
-          <div class="setting-group">
-            <h4>Видео устройства</h4>
-            <select id="videoInputSelect" class="device-select">
-              <option>Выберите камеру...</option>
-            </select>
-          </div>
-        </div>
-      </div>
-
-      <!-- History Panel -->
-      <div id="historyPanel" class="history-panel">
-        <div class="history-header">
-          <h3>История звонков</h3>
-          <button id="closeHistoryBtn" class="close-btn">
-            <svg viewBox="0 0 24 24" fill="currentColor">
-              <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
-            </svg>
-          </button>
-        </div>
-        <div class="history-content">
-          <div id="historyList" class="history-list"></div>
-        </div>
-      </div>
-
-      <!-- Toast Notifications -->
-      <div id="toastContainer" class="toast-container"></div>
-      
-      <!-- Russian Network Diagnostics Elements -->
-      <div id="connectionQualityIndicator" class="connection-quality-indicator">
-        <div class="quality-header">
-          <span class="quality-title">Качество сети</span>
-          <button class="minimize-btn" id="minimizeQualityBtn">-</button>
-        </div>
-        <div class="quality-metrics">
-          <div class="quality-metric">
-            <span class="metric-label">Скорость:</span>
-            <span class="metric-value" id="connectionSpeed">Проверка...</span>
-          </div>
-          <div class="quality-metric">
-            <span class="metric-label">Задержка:</span>
-            <span class="metric-value" id="connectionLatency">Проверка...</span>
-          </div>
-          <div class="quality-metric">
-            <span class="metric-label">Качество:</span>
-            <span class="metric-value" id="networkQuality">Проверка...</span>
-          </div>
-        </div>
-      </div>
-
-      <div id="turnStatus" class="turn-status">
-        <div class="turn-indicator" id="turnIndicator"></div>
-        <span class="turn-status-text" id="turnStatusText">TURN Сервер: Проверка...</span>
-        <button class="turn-diagnostic-btn" id="runTurnDiagnosticsBtn" title="Диагностика TURN сервера">
-          🔍
+        <button id="connectBtn" class="button">
+            🛡️ Активировать защиту VLESS
         </button>
-      </div>
 
-      <div id="russianNetworkBadge" class="russian-network-badge">
-        <div class="russian-flag"></div>
-        <span>Оптимизировано для России</span>
-      </div>
+        <button id="callBtn" class="button call" disabled>
+            📞 Начать защищенный звонок
+        </button>
 
-      <div id="adaptiveControls" class="adaptive-controls">
-        <div class="adaptive-header">
-          <span class="adaptive-title">Адаптивное качество</span>
-          <div class="auto-switch">
-            <span>Авто</span>
-            <div class="auto-switch-toggle active" id="autoQualityToggle"></div>
-          </div>
-        </div>
-        <div class="quality-presets">
-          <div class="quality-preset" data-quality="ultra">
-            <span class="preset-name">Максимальное</span>
-            <span class="preset-details">4K, 60fps</span>
-          </div>
-          <div class="quality-preset active" data-quality="hd">
-            <span class="preset-name">HD</span>
-            <span class="preset-details">1080p, 30fps</span>
-          </div>
-          <div class="quality-preset" data-quality="sd">
-            <span class="preset-name">SD</span>
-            <span class="preset-details">720p, 24fps</span>
-          </div>
-          <div class="quality-preset" data-quality="mobile">
-            <span class="preset-name">Мобильное</span>
-            <span class="preset-details">480p, 20fps</span>
-          </div>
-        </div>
-      </div>
+        <button id="hangupBtn" class="button" style="display: none;">
+            📞 Завершить звонок
+        </button>
 
-      <div id="troubleshootingPanel" class="troubleshooting-panel">
-        <div class="troubleshooting-header">
-          <span class="troubleshooting-title">Рекомендации</span>
-          <button class="close-btn" id="closeTroubleshootingBtn">
-            <svg viewBox="0 0 24 24" fill="currentColor">
-              <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
-            </svg>
-          </button>
+        <div class="room-info" id="roomInfo" style="display: none;">
+            Код комнаты: <strong id="roomCode"></strong><br>
+            <small>Поделитесь этим кодом с собеседником</small>
         </div>
-        <div class="troubleshooting-content" id="troubleshootingContent">
-          <!-- Dynamically populated with recommendations -->
+
+        <div class="video-container" style="display: none;" id="videoContainer">
+            <div class="video-wrapper">
+                <video id="localVideo" autoplay muted playsinline></video>
+                <div class="video-label">Вы (через VLESS)</div>
+            </div>
+            <div class="video-wrapper">
+                <video id="remoteVideo" autoplay playsinline></video>
+                <div class="video-label">Собеседник</div>
+            </div>
         </div>
-      </div>
+
+        <div style="margin-top: 2rem; font-size: 0.9rem; opacity: 0.8;">
+            🔒 Весь трафик зашифрован и замаскирован<br>
+            📱 Поддержка: МТС • Билайн • МегаФон • Теле2
+        </div>
     </div>
 
-    <script src="turn-diagnostics.js"></script>
-    <script src="russian-diagnostics.js"></script>
-    <script src="app.js"></script>
-  </body>
+    <script src="vless-protocol.js"></script>
+    <script>
+        // Global variables
+        let webrtcVless = null;
+        let roomId = 'room-' + Math.random().toString(36).substr(2, 9);
+
+        // DOM elements
+        const connectBtn = document.getElementById('connectBtn');
+        const callBtn = document.getElementById('callBtn');
+        const hangupBtn = document.getElementById('hangupBtn');
+        const status = document.getElementById('status');
+        const roomInfo = document.getElementById('roomInfo');
+        const roomCode = document.getElementById('roomCode');
+        const videoContainer = document.getElementById('videoContainer');
+        const localVideo = document.getElementById('localVideo');
+        const remoteVideo = document.getElementById('remoteVideo');
+
+        // Update status
+        function updateStatus(message, type = 'info') {
+            status.textContent = message;
+            status.style.background = type === 'success' ? 'rgba(40, 167, 69, 0.3)' :
+                                   type === 'error' ? 'rgba(220, 53, 69, 0.3)' :
+                                   'rgba(255, 255, 255, 0.2)';
+            console.log(`[${type.toUpperCase()}] ${message}`);
+        }
+
+        // Connect VLESS
+        async function connectVLESS() {
+            try {
+                updateStatus('🔄 Подключение к VLESS серверу...', 'info');
+                connectBtn.disabled = true;
+                connectBtn.textContent = '🔄 Подключение...';
+
+                webrtcVless = new WebRTCOverVLESS();
+                
+                // Handle connection state changes
+                webrtcVless.onConnectionChange = (state) => {
+                    console.log('Connection state:', state);
+                    
+                    if (state === 'connected') {
+                        updateStatus('✅ VLESS защита активирована! Можно начинать звонок.', 'success');
+                        connectBtn.textContent = '🛡️ Защита активна';
+                        connectBtn.classList.add('success');
+                        callBtn.disabled = false;
+                    } else if (state === 'error' || state === 'disconnected') {
+                        updateStatus('❌ Ошибка подключения к VLESS серверу', 'error');
+                        resetUI();
+                    }
+                };
+
+                // Handle remote stream
+                webrtcVless.onRemoteStream = (stream) => {
+                    remoteVideo.srcObject = stream;
+                    updateStatus('🎥 Видеозвонок подключен через VLESS!', 'success');
+                };
+
+                await webrtcVless.initVLESS();
+
+            } catch (error) {
+                updateStatus('❌ Ошибка VLESS: ' + error.message, 'error');
+                resetUI();
+            }
+        }
+
+        // Start call
+        async function startCall() {
+            try {
+                if (!webrtcVless || !webrtcVless.getStatus().vlessConnected) {
+                    updateStatus('❌ Сначала активируйте VLESS защиту!', 'error');
+                    return;
+                }
+
+                updateStatus('📞 Начинаем защищенный звонок...', 'info');
+                callBtn.disabled = true;
+                callBtn.textContent = '🔄 Соединение...';
+                hangupBtn.style.display = 'inline-block';
+                videoContainer.style.display = 'block';
+                
+                roomCode.textContent = roomId;
+                roomInfo.style.display = 'block';
+
+                await webrtcVless.startCall(localVideo, remoteVideo);
+                
+                updateStatus('🔄 Ожидаем подключения собеседника...', 'info');
+                callBtn.textContent = '⏳ Ожидание...';
+
+            } catch (error) {
+                updateStatus('❌ Ошибка звонка: ' + error.message, 'error');
+                resetCallUI();
+            }
+        }
+
+        // Hang up
+        function hangupCall() {
+            if (webrtcVless) {
+                webrtcVless.endCall();
+            }
+
+            updateStatus('📞 Звонок завершен', 'info');
+            resetCallUI();
+        }
+
+        // Reset UI
+        function resetUI() {
+            connectBtn.textContent = '🛡️ Активировать защиту VLESS';
+            connectBtn.classList.remove('success');
+            connectBtn.disabled = false;
+            callBtn.disabled = true;
+            resetCallUI();
+        }
+
+        function resetCallUI() {
+            callBtn.textContent = '📞 Начать защищенный звонок';
+            callBtn.disabled = webrtcVless ? !webrtcVless.getStatus().vlessConnected : true;
+            hangupBtn.style.display = 'none';
+            videoContainer.style.display = 'none';
+            roomInfo.style.display = 'none';
+        }
+
+        // Event listeners
+        connectBtn.addEventListener('click', connectVLESS);
+        callBtn.addEventListener('click', startCall);
+        hangupBtn.addEventListener('click', hangupCall);
+
+        // Initialize
+        updateStatus('🛡️ Готов к активации VLESS защиты', 'info');
+        
+        console.log('🛡️ VideoCall VLESS Edition loaded');
+        console.log('🔑 Room ID:', roomId);
+    </script>
+</body>
 </html>
