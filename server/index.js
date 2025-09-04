@@ -401,6 +401,135 @@ app.post('/optimize-quality', express.json(), (req, res) => {
   });
 });
 
+// API для диагностики TURN сервера (получение результатов от клиентов)
+app.post('/turn-diagnostics', express.json(), (req, res) => {
+  const diagnosticData = req.body;
+  const timestamp = Date.now();
+  const clientIP = req.ip || req.connection.remoteAddress || '';
+  
+  // Логируем диагностику TURN для анализа
+  console.log(`🔍 TURN Diagnostics from ${clientIP}:`, {
+    timestamp,
+    server: diagnosticData.server,
+    grade: diagnosticData.verdict,
+    issues: diagnosticData.criticalIssues?.length || 0,
+    connectionType: diagnosticData.connectionType
+  });
+  
+  // Анализируем результаты и даем рекомендации
+  const analysis = {
+    timestamp,
+    clientIP,
+    diagnosis: diagnosticData.verdict,
+    criticalIssues: diagnosticData.criticalIssues || [],
+    recommendations: diagnosticData.recommendations || []
+  };
+  
+  // Специфичные рекомендации для российских мобильных сетей
+  if (diagnosticData.connectionType && diagnosticData.connectionType.includes('g')) {
+    analysis.recommendations.push(
+      'Для мобильных сетей в России рекомендуется TCP transport',
+      'Попробуйте переключиться на WiFi для лучшего качества',
+      'Убедитесь что TURN сервер доступен на порту 3478'
+    );
+  }
+  
+  // Если есть проблемы с relay
+  if (analysis.criticalIssues.some(issue => issue.includes('relay'))) {
+    analysis.recommendations.push(
+      '🚨 КРИТИЧЕСКАЯ ПРОБЛЕМА: TURN relay не работает!',
+      'Проверьте настройки coturn на VPS 94.198.218.189',
+      'Убедитесь что порты 3478 UDP/TCP открыты в firewall',
+      'Проверьте учетные данные TURN: webrtc / pRr45XBJgdff9Z2Q4EdTLwOUyqudQjtN'
+    );
+  }
+  
+  // Если проблемы с подключением
+  if (analysis.criticalIssues.some(issue => issue.includes('доступен'))) {
+    analysis.recommendations.push(
+      '🔥 СЕРВЕР НЕДОСТУПЕН: Проверьте статус VPS',
+      'Команды для проверки: systemctl status coturn',
+      'Проверьте логи: journalctl -u coturn -f',
+      'Убедитесь что coturn слушает на 0.0.0.0:3478'
+    );
+  }
+  
+  res.json({
+    success: true,
+    analysis,
+    serverRecommendations: [
+      'Проверьте конфигурацию /etc/turnserver.conf',
+      'Убедитесь что coturn запущен: systemctl status coturn',
+      'Проверьте firewall: ufw status',
+      'Мониторьте логи TURN сервера'
+    ],
+    nextSteps: analysis.criticalIssues.length > 0 ? [
+      'Немедленно проверьте настройки TURN сервера',
+      'Перезапустите coturn: systemctl restart coturn', 
+      'Проверьте доступность портов извне',
+      'Рассмотрите использование TCP transport для мобильных'
+    ] : [
+      'TURN сервер работает корректно',
+      'Мониторьте производительность',
+      'Рассмотрите дополнительные TURN серверы для резервирования'
+    ]
+  });
+});
+
+// Экстренная проверка состояния TURN сервера
+app.get('/turn-server-status', (req, res) => {
+  const turnServerInfo = {
+    host: '94.198.218.189',
+    port: 3478,
+    protocols: ['UDP', 'TCP'],
+    username: 'webrtc',
+    // Пароль не отображаем в открытом виде
+    credentialConfigured: true,
+    
+    // Статус который должен проверяться на VPS
+    expectedServices: [
+      'coturn.service должен быть active (running)',
+      'Порт 3478/udp должен слушать на 0.0.0.0',
+      'Порт 3478/tcp должен слушать на 0.0.0.0'
+    ],
+    
+    // Команды для проверки на VPS
+    diagnosticCommands: [
+      'systemctl status coturn',
+      'netstat -tuln | grep 3478',
+      'journalctl -u coturn --no-pager -l',
+      'ufw status'
+    ],
+    
+    // Типичные проблемы
+    commonIssues: [
+      {
+        problem: 'Сервис не запущен',
+        solution: 'systemctl start coturn && systemctl enable coturn'
+      },
+      {
+        problem: 'Порты заблокированы',
+        solution: 'ufw allow 3478/tcp && ufw allow 3478/udp'
+      },
+      {
+        problem: 'Неправильная конфигурация',
+        solution: 'Проверьте /etc/turnserver.conf'
+      },
+      {
+        problem: 'Недостаточно памяти/CPU',
+        solution: 'Увеличьте ресурсы VPS или оптимизируйте настройки'
+      }
+    ]
+  };
+  
+  res.json({
+    success: true,
+    turnServer: turnServerInfo,
+    currentTime: new Date().toISOString(),
+    message: 'Используйте эти команды для диагностики TURN сервера на VPS'
+  });
+});
+
 const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 VideoChat Pro Server (Russia Edition) started`);
   console.log(`📡 HTTP server: http://0.0.0.0:${PORT}`);

@@ -1299,6 +1299,28 @@ body::before {
   color: var(--warning);
 }
 
+.turn-diagnostic-btn {
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 4px;
+  background: var(--bg-glass);
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  margin-left: 8px;
+  transition: all 0.2s ease;
+}
+
+.turn-diagnostic-btn:hover {
+  background: var(--primary);
+  color: white;
+  transform: scale(1.1);
+}
+
 /* Russian Network Badge */
 .russian-network-badge {
   position: fixed;

@@ -39,15 +39,35 @@ const VIDEO_CONSTRAINTS = {
     frameRate: { ideal: 24, min: 20 },
     aspectRatio: { ideal: 16/9 }
   },
+  
+  // Специально оптимизированные пресеты для российских мобильных сетей
+  mobile_4g: { 
+    width: { ideal: 960, min: 640 }, 
+    height: { ideal: 540, min: 360 }, 
+    frameRate: { ideal: 24, min: 20 },
+    aspectRatio: { ideal: 16/9 }
+  },
+  mobile_3g: { 
+    width: { ideal: 640, min: 480 }, 
+    height: { ideal: 360, min: 240 }, 
+    frameRate: { ideal: 20, min: 15 },
+    aspectRatio: { ideal: 16/9 }
+  },
+  mobile_poor: { 
+    width: { ideal: 480, min: 320 }, 
+    height: { ideal: 270, min: 180 }, 
+    frameRate: { ideal: 15, min: 12 },
+    aspectRatio: { ideal: 16/9 }
+  },
   mobile: { 
     width: { ideal: 640, min: 480 }, 
     height: { ideal: 480, min: 360 }, 
     frameRate: { ideal: 20, min: 15 }
   },
   minimal: { 
-    width: { ideal: 480, min: 320 }, 
-    height: { ideal: 360, min: 240 }, 
-    frameRate: { ideal: 15, min: 10 }
+    width: { ideal: 320, min: 240 }, 
+    height: { ideal: 180, min: 120 }, 
+    frameRate: { ideal: 12, min: 8 }
   }
 };
 
@@ -76,13 +96,18 @@ const AUDIO_CONSTRAINTS = {
   }
 };
 
-// Optimized bitrates for 1Gbps connection
+// Оптимизированные битрейты для российских сетей
 const BITRATE_PRESETS = {
-  ultra: { video: 50000000, audio: 256000 }, // 50 Mbps video, 256 kbps audio
-  high: { video: 20000000, audio: 192000 },  // 20 Mbps video, 192 kbps audio
-  medium: { video: 8000000, audio: 128000 },  // 8 Mbps video, 128 kbps audio
-  low: { video: 2000000, audio: 96000 },      // 2 Mbps video, 96 kbps audio
-  minimal: { video: 500000, audio: 64000 }    // 500 kbps video, 64 kbps audio
+  ultra: { video: 50000000, audio: 256000 }, // 50 Mbps video, 256 kbps audio - для 1Gbps
+  high: { video: 20000000, audio: 192000 },  // 20 Mbps video, 192 kbps audio - для быстрого WiFi
+  medium: { video: 8000000, audio: 128000 }, // 8 Mbps video, 128 kbps audio - для обычного WiFi
+  low: { video: 2000000, audio: 96000 },     // 2 Mbps video, 96 kbps audio - для 4G
+  
+  // Специально для российских мобильных сетей
+  mobile_4g: { video: 1200000, audio: 64000 },    // 1.2 Mbps для 4G (МТС/Билайн/Мегафон)
+  mobile_3g: { video: 600000, audio: 48000 },     // 600 kbps для 3G
+  mobile_poor: { video: 300000, audio: 32000 },   // 300 kbps для плохого мобильного
+  minimal: { video: 150000, audio: 24000 }        // 150 kbps для критически плохих сетей
 };
 
 // ========== UTILITY FUNCTIONS ==========
@@ -284,6 +309,11 @@ class VideoCallApp {
     // Room input enter key
     this.safeAddEventListener(this.elements.roomInput, 'keypress', (e) => {
       if (e.key === 'Enter') this.joinRoom();
+    });
+    
+    // TURN diagnostics button
+    this.safeAddEventListener(document.getElementById('runTurnDiagnosticsBtn'), 'click', () => {
+      this.runTurnDiagnostics();
     });
     
     // Window events
@@ -495,13 +525,19 @@ class VideoCallApp {
   }
 
   async createPeerConnection() {
-    // Адаптивная конфигурация в зависимости от типа сети
+    // Агрессивная конфигурация для российских мобильных сетей
     let iceTransportPolicy = 'all'; // Начинаем с попытки P2P
     
-    // Для мобильных сетей сразу используем TURN
-    if (this.environment.isMobile || this.environment.connectionType === 'poor' || this.environment.connectionType === 'fair') {
+    // КРИТИЧНО: Для мобильных сетей в России ВСЕГДА используем TURN
+    const isMobileNetwork = this.environment.isMobile || 
+                           this.environment.connectionType === 'poor' || 
+                           this.environment.connectionType === 'fair' ||
+                           this.detectMobileConnection();
+    
+    if (isMobileNetwork || this.isRussianUser) {
       iceTransportPolicy = 'relay';
-      console.log('🔄 Forcing TURN for mobile/poor connection');
+      console.log('🔄 Forcing TURN for Russian mobile networks');
+      this.showToast('info', '📱 Принудительно используем TURN для мобильной сети');
     }
     
     const config = {
@@ -588,12 +624,28 @@ class VideoCallApp {
   optimizePeerConnection() {
     if (!this.pc) return;
     
-    const bitrates = BITRATE_PRESETS[
-      this.environment.connectionType === 'ultra' ? 'ultra' :
-      this.environment.connectionType === 'excellent' ? 'high' :
-      this.environment.connectionType === 'good' ? 'medium' :
-      this.environment.connectionType === 'fair' ? 'low' : 'minimal'
-    ];
+    // Специальная логика для российских мобильных сетей
+    let bitrateKey = 'medium'; // По умолчанию
+    
+    if (this.detectMobileConnection()) {
+      // Мобильная сеть - используем специальные пресеты
+      if (this.environment.connectionType === 'excellent' && this.environment.effectiveSpeed > 10) {
+        bitrateKey = 'mobile_4g';
+      } else if (this.environment.connectionType === 'good') {
+        bitrateKey = 'mobile_3g';
+      } else {
+        bitrateKey = 'mobile_poor';
+      }
+      console.log(`📱 Mobile network detected, using ${bitrateKey} preset`);
+    } else {
+      // WiFi/проводной интернет - обычные пресеты
+      bitrateKey = this.environment.connectionType === 'ultra' ? 'ultra' :
+                   this.environment.connectionType === 'excellent' ? 'high' :
+                   this.environment.connectionType === 'good' ? 'medium' :
+                   this.environment.connectionType === 'fair' ? 'low' : 'minimal';
+    }
+    
+    const bitrates = BITRATE_PRESETS[bitrateKey];
     
     this.pc.getSenders().forEach(sender => {
       if (!sender.track) return;
@@ -1347,6 +1399,9 @@ class VideoCallApp {
         this.updateConnectionStatus('error', 'Отключен');
         this.connectionIssues++;
         
+        // Автоматическая диагностика TURN при проблемах
+        this.autoTurnDiagnostics();
+        
         // Для российских пользователей пытаемся переподключиться быстрее
         if (this.isRussianUser && this.connectionIssues < this.maxReconnectAttempts) {
           setTimeout(() => this.attemptReconnection(), 2000);
@@ -1356,6 +1411,11 @@ class VideoCallApp {
       case 'failed':
         this.updateConnectionStatus('error', 'Ошибка');
         this.connectionIssues++;
+        
+        // Критическая диагностика TURN при отказе соединения
+        if (this.connectionIssues >= 2) {
+          this.autoTurnDiagnostics();
+        }
         
         if (this.connectionIssues >= 3 && !this.turnForced) {
           this.switchToTurnConnection();
@@ -1409,6 +1469,201 @@ class VideoCallApp {
         this.showToast('error', 'Ошибка переподключения');
       }
     }
+  }
+
+  // Детектирование мобильного соединения (российские операторы)
+  detectMobileConnection() {
+    if ('connection' in navigator) {
+      const conn = navigator.connection;
+      
+      // Проверяем тип соединения
+      if (conn.type === 'cellular') return true;
+      
+      // Проверяем эффективный тип (российские мобильные сети)
+      const mobileTypes = ['slow-2g', '2g', '3g'];
+      if (mobileTypes.includes(conn.effectiveType)) return true;
+      
+      // Проверяем скорость (медленное соединение = вероятно мобильное)
+      if (conn.downlink && conn.downlink < 5) return true;
+      
+      // Высокий RTT указывает на мобильную сеть
+      if (conn.rtt && conn.rtt > 200) return true;
+    }
+    
+    // Проверяем User-Agent на мобильные устройства
+    const mobileUA = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i;
+    if (mobileUA.test(navigator.userAgent)) return true;
+    
+    // Проверяем размер экрана (примитивная проверка)
+    if (window.screen.width < 768) return true;
+    
+    return false;
+  }
+
+  // ========== TURN SERVER DIAGNOSTICS INTEGRATION ==========
+  
+  // Запуск полной диагностики TURN сервера
+  async runTurnDiagnostics() {
+    if (!window.TurnDiagnostics) {
+      console.error('TurnDiagnostics not loaded');
+      return null;
+    }
+
+    this.showToast('info', '🔍 Запускаем диагностику TURN сервера...');
+    
+    try {
+      const diagnostics = new window.TurnDiagnostics();
+      const results = await diagnostics.performCompleteTurnDiagnostics();
+      
+      // Отправляем результаты на сервер для анализа
+      const report = diagnostics.generateDiagnosticReport(results);
+      
+      try {
+        const response = await fetch('/turn-diagnostics', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(report)
+        });
+        
+        if (response.ok) {
+          const serverAnalysis = await response.json();
+          console.log('📊 Server analysis:', serverAnalysis);
+          
+          // Показываем результаты пользователю
+          this.displayTurnDiagnosticsResults(results, serverAnalysis);
+        }
+      } catch (error) {
+        console.warn('Failed to send diagnostics to server:', error);
+      }
+      
+      return results;
+      
+    } catch (error) {
+      console.error('TURN diagnostics failed:', error);
+      this.showToast('error', '❌ Диагностика TURN не удалась: ' + error.message);
+      return null;
+    }
+  }
+
+  // Отображение результатов диагностики TURN
+  displayTurnDiagnosticsResults(results, serverAnalysis) {
+    const grade = results.analysis?.grade || 'F';
+    const score = results.analysis?.overallScore || 0;
+    
+    // Определяем цвет и сообщение по оценке
+    let statusColor, statusMessage, statusIcon;
+    
+    if (grade === 'A' || grade === 'B') {
+      statusColor = 'success';
+      statusMessage = '✅ TURN сервер работает отлично';
+      statusIcon = '✅';
+    } else if (grade === 'C') {
+      statusColor = 'warning';
+      statusMessage = '⚠️ TURN сервер работает с проблемами';
+      statusIcon = '⚠️';
+    } else {
+      statusColor = 'error';
+      statusMessage = '❌ TURN сервер не работает правильно';
+      statusIcon = '❌';
+    }
+    
+    this.showToast(statusColor, `${statusIcon} Диагностика TURN: ${grade} (${score}/100)`, 8000);
+    
+    // Показываем критические проблемы
+    if (results.analysis?.issues && results.analysis.issues.length > 0) {
+      setTimeout(() => {
+        results.analysis.issues.forEach((issue, index) => {
+          setTimeout(() => {
+            this.showToast('error', `🔴 ${issue}`, 6000);
+          }, index * 2000);
+        });
+      }, 1000);
+    }
+    
+    // Показываем рекомендации сервера
+    if (serverAnalysis?.serverRecommendations) {
+      setTimeout(() => {
+        this.showToast('info', '💡 Проверьте настройки TURN на VPS', 5000);
+      }, 3000);
+    }
+    
+    // Обновляем UI индикатор TURN статуса
+    this.updateTurnStatusIndicator(results);
+  }
+
+  // Обновление индикатора статуса TURN
+  updateTurnStatusIndicator(results) {
+    const turnIndicator = document.getElementById('turnIndicator');
+    const turnStatusText = document.getElementById('turnStatusText');
+    
+    if (!turnIndicator || !turnStatusText) return;
+    
+    const isWorking = results.analysis?.overallScore > 40;
+    const grade = results.analysis?.grade || 'F';
+    
+    turnIndicator.className = `turn-indicator ${isWorking ? 'active' : 'connecting'}`;
+    
+    if (isWorking) {
+      turnStatusText.textContent = `TURN: Активен (${grade})`;
+      turnStatusText.parentElement.className = 'turn-status active';
+    } else {
+      turnStatusText.textContent = `TURN: Проблемы (${grade})`;
+      turnStatusText.parentElement.className = 'turn-status';
+    }
+  }
+
+  // Автоматическая диагностика при проблемах с соединением
+  async autoTurnDiagnostics() {
+    // Запускаем диагностику если есть проблемы с соединением
+    if (this.connectionIssues >= 2 && !this.turnDiagnosticsRunning) {
+      this.turnDiagnosticsRunning = true;
+      
+      console.log('🔍 Auto-running TURN diagnostics due to connection issues');
+      
+      try {
+        const results = await this.runTurnDiagnostics();
+        
+        if (results && results.analysis?.overallScore < 60) {
+          // TURN сервер работает плохо, показываем экстренные рекомендации
+          this.showEmergencyTurnRecommendations(results);
+        }
+      } finally {
+        this.turnDiagnosticsRunning = false;
+      }
+    }
+  }
+
+  // Экстренные рекомендации при проблемах TURN
+  showEmergencyTurnRecommendations(results) {
+    const issues = results.analysis?.issues || [];
+    
+    let recommendations = [
+      '🚨 Обнаружены проблемы с TURN сервером!',
+    ];
+    
+    if (issues.some(issue => issue.includes('не доступен'))) {
+      recommendations.push('• Проверьте подключение к интернету');
+      recommendations.push('• TURN сервер может быть выключен');
+    }
+    
+    if (issues.some(issue => issue.includes('relay'))) {
+      recommendations.push('• TURN relay не функционирует');
+      recommendations.push('• Попробуйте переподключиться');
+    }
+    
+    if (issues.some(issue => issue.includes('задержка'))) {
+      recommendations.push('• Высокая задержка сети');
+      recommendations.push('• Попробуйте WiFi вместо мобильной связи');
+    }
+    
+    recommendations.push('🔄 Автоматически пытаемся исправить...');
+    
+    // Показываем рекомендации поочередно
+    recommendations.forEach((rec, index) => {
+      setTimeout(() => {
+        this.showToast(index === 0 ? 'error' : 'warning', rec, 5000);
+      }, index * 1500);
+    });
   }
 }
 
