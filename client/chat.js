@@ -29,6 +29,8 @@ class ChatSystem {
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         const wsUrl = `${protocol}//${window.location.host}/ws`;
         
+        console.log('🌐 Подключаемся к WebSocket:', wsUrl);
+        
         this.ws = new WebSocket(wsUrl);
         
         this.ws.onopen = () => {
@@ -36,6 +38,11 @@ class ChatSystem {
             console.log('🌐 WebSocket подключен');
             NotificationSystem.show('🌐 Подключение к космической сети установлено', 'success');
             this.updateConnectionStatus(true);
+            
+            // Если есть пользователь, аутентифицируемся
+            if (this.user) {
+                this.authenticateUser();
+            }
         };
         
         this.ws.onmessage = (event) => {
@@ -56,23 +63,92 @@ class ChatSystem {
             NotificationSystem.show('❌ Ошибка подключения к серверу', 'error');
         };
     }
+    
+    // Аутентификация пользователя на сервере
+    authenticateUser() {
+        if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+        
+        const savedUser = localStorage.getItem('cosmosChat_user');
+        if (savedUser) {
+            const userData = JSON.parse(savedUser);
+            
+            this.ws.send(JSON.stringify({
+                type: 'login',
+                phone: userData.phone,
+                name: userData.name
+            }));
+            
+            console.log('🔑 Отправлена аутентификация');
+        }
+    }
+    
+    // Отправка сообщения через WebSocket
+    sendWebSocketMessage(message) {
+        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+            this.ws.send(JSON.stringify(message));
+        } else {
+            console.warn('⚠️ WebSocket не подключен');
+        }
+    }
+    
+    // Поиск пользователя через сервер
+    searchUserOnServer(phone) {
+        this.sendWebSocketMessage({
+            type: 'search_user',
+            query: phone
+        });
+    }
+    
+    // Обработка результатов поиска
+    handleSearchResults(message) {
+        const { users } = message;
+        if (users && users.length > 0) {
+            // Показываем первого пользователя
+            const searchModal = window.searchModal || window.userSearchModal;
+            if (searchModal && searchModal.showUserResult) {
+                searchModal.showUserResult(users[0]);
+            }
+        } else {
+            // Пользователь не найден
+            const searchModal = window.searchModal || window.userSearchModal;
+            if (searchModal && searchModal.showEmptyResult) {
+                searchModal.showEmptyResult();
+            }
+        }
+    }
 
     handleMessage(message) {
         switch (message.type) {
+            case 'connected':
+                console.log('✅ Получено подтверждение подключения');
+                if (this.user) {
+                    this.authenticateUser();
+                }
+                break;
+            case 'chat_message':
             case 'chat-message':
                 this.receiveMessage(message);
                 break;
+            case 'user_joined':
             case 'user-joined':
                 this.handleUserJoined(message);
                 break;
+            case 'user_left':
             case 'user-left':
                 this.handleUserLeft(message);
                 break;
             case 'typing':
                 this.handleTyping(message);
                 break;
+            case 'incoming_call':
             case 'video-call-request':
                 this.handleVideoCallRequest(message);
+                break;
+            case 'search_results':
+                this.handleSearchResults(message);
+                break;
+            case 'error':
+                NotificationSystem.show(`❌ ${message.message}`, 'error');
                 break;
         }
     }
@@ -411,10 +487,12 @@ class ChatSystem {
         this.currentChat.lastMessageTime = Date.now();
 
         // Отправляем через WebSocket
-        if (this.isConnected) {
+        if (this.isConnected && this.ws) {
+            // Отправляем в формате нового сервера
             this.ws.send(JSON.stringify({
-                type: 'chat-message',
-                ...message
+                type: 'chat_message',
+                roomId: this.currentChat.id,
+                text: text
             }));
         }
 

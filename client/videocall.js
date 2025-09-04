@@ -66,13 +66,26 @@ class VideoCallSystem {
         // Используем тот же WebSocket, что и для чатов
         if (window.chatSystem && window.chatSystem.ws) {
             this.ws = window.chatSystem.ws;
+            console.log('🎥 Используем WebSocket от чат-системы');
         } else {
             // Создаем собственный WebSocket, если чат-система не инициализирована
             const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            this.ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
+            const wsUrl = `${protocol}//${window.location.host}/ws`;
+            
+            console.log('🎥 Создаем WebSocket для видеозвонков:', wsUrl);
+            
+            this.ws = new WebSocket(wsUrl);
             
             this.ws.onopen = () => {
                 console.log('🎥 VideoCall WebSocket подключен');
+            };
+            
+            this.ws.onerror = (error) => {
+                console.error('❌ WebSocket ошибка:', error);
+            };
+            
+            this.ws.onclose = () => {
+                console.log('🔌 WebSocket закрыт');
             };
         }
     }
@@ -91,12 +104,15 @@ class VideoCallSystem {
 
     handleWebSocketMessage(message) {
         switch (message.type) {
+            case 'offer':
             case 'video-call-offer':
                 this.handleCallOffer(message);
                 break;
+            case 'answer':
             case 'video-call-answer':
                 this.handleCallAnswer(message);
                 break;
+            case 'ice_candidate':
             case 'video-call-ice-candidate':
                 this.handleIceCandidate(message);
                 break;

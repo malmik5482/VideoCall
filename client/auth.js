@@ -11,7 +11,7 @@ class AuthSystem {
     }
 
     init() {
-        // Устанавливаем таймаут на случай проблем с инициализацией
+        // Быстрая инициализация - показываем экран авторизации через 2 секунды если нет сохраненного пользователя
         setTimeout(() => {
             const loadingScreen = document.getElementById('loadingScreen');
             const authScreen = document.getElementById('authScreen');
@@ -20,7 +20,7 @@ class AuthSystem {
                 console.log('⚠️ Принудительно показываем экран авторизации');
                 this.showAuthScreen();
             }
-        }, 5000);
+        }, 2000);
         
         this.checkExistingAuth();
         this.setupEventListeners();
@@ -48,9 +48,19 @@ class AuthSystem {
     showAuthScreen() {
         const loadingScreen = document.getElementById('loadingScreen');
         const authScreen = document.getElementById('authScreen');
+        const mainApp = document.getElementById('mainApp');
         
-        loadingScreen.classList.add('hidden');
-        authScreen.classList.remove('hidden');
+        // Скрываем все остальные экраны
+        if (loadingScreen) loadingScreen.classList.add('hidden');
+        if (mainApp) mainApp.classList.add('hidden');
+        
+        // Показываем экран авторизации
+        if (authScreen) {
+            authScreen.classList.remove('hidden');
+            // Убираем возможные блюр эффекты
+            document.body.style.filter = 'none';
+            document.body.style.backdropFilter = 'none';
+        }
         
         console.log('🔓 Показываем экран авторизации');
     }

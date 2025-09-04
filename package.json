@@ -2,15 +2,20 @@
   "name": "videocall-russian-optimized",
   "version": "4.0.0",
   "private": true,
-  "main": "server/index.js",
+  "main": "server/server.js",
   "scripts": {
-    "start": "node server/index.js",
-    "dev": "node server/index.js",
+    "start": "node server/server.js",
+    "dev": "node server/server.js",
+    "start:pm2": "pm2 start ecosystem.config.js --env production",
+    "stop:pm2": "pm2 stop cosmoschat",
+    "restart:pm2": "pm2 restart cosmoschat",
+    "logs:pm2": "pm2 logs cosmoschat --lines 100",
     "test": "echo \"No tests specified\" && exit 0"
   },
   "dependencies": {
     "agora-rtc-sdk-ng": "^4.20.0",
     "agora-token": "^2.0.5",
+    "axios": "^1.11.0",
     "cors": "^2.8.5",
     "express": "^4.19.2",
     "ws": "^8.17.1"
