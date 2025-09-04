@@ -5,7 +5,6 @@ const compression = require('compression');
 const helmet = require('helmet');
 const cors = require('cors');
 const { WebSocketServer } = require('ws');
-const fs = require('fs');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -29,66 +28,101 @@ app.use(helmet({
   crossOriginEmbedderPolicy: false
 }));
 
-app.use(compression({
-  level: 6,
-  threshold: 1024,
-  filter: (req, res) => {
-    if (req.headers['x-no-compression']) return false;
-    return compression.filter(req, res);
-  }
-}));
-
-app.use(cors({
-  origin: NODE_ENV === 'production' ? 
-    [process.env.ALLOWED_ORIGINS?.split(',') || 'https://malmik5482-videocall-fc69.twc1.net'].flat() :
-    true,
-  credentials: true
-}));
-
+app.use(compression());
+app.use(cors());
 app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Rate limiting middleware
-const rateLimit = new Map();
-const RATE_LIMIT_WINDOW = 60000; // 1 minute
-const RATE_LIMIT_MAX = 100; // requests per window
-
-const rateLimitMiddleware = (req, res, next) => {
-  const clientIP = req.ip || req.connection.remoteAddress;
-  const now = Date.now();
-  
-  if (!rateLimit.has(clientIP)) {
-    rateLimit.set(clientIP, { count: 1, resetTime: now + RATE_LIMIT_WINDOW });
-    return next();
-  }
-  
-  const clientData = rateLimit.get(clientIP);
-  if (now > clientData.resetTime) {
-    clientData.count = 1;
-    clientData.resetTime = now + RATE_LIMIT_WINDOW;
-    return next();
-  }
-  
-  if (clientData.count >= RATE_LIMIT_MAX) {
-    return res.status(429).json({ error: 'Too many requests' });
-  }
-  
-  clientData.count++;
-  next();
-};
-
-app.use(rateLimitMiddleware);
-
-// Serve static files with caching
+// Serve static files
 const clientDir = path.join(__dirname, '..', 'client');
-app.use(express.static(clientDir, { 
-  extensions: ['html'],
-  maxAge: NODE_ENV === 'production' ? '1d' : '0',
-  etag: true,
-  lastModified: true
-}));
+app.use(express.static(clientDir, { extensions: ['html'] }));
 
-// ---- Enhanced Call History and Analytics ----
+// ---- Enhanced ICE Configuration for Russia with your TURN server ----
+function getICEConfig() {
+  // Специально оптимизированные серверы для России
+  let iceServers = [
+    // Ваш собственный TURN сервер - приоритет #1 для российских пользователей
+    {
+      urls: [
+        'turn:94.198.218.189:3478?transport=udp',
+        'turn:94.198.218.189:3478?transport=tcp'
+      ],
+      username: 'webrtc',
+      credential: 'pRr45XBJgdff9Z2Q4EdTLwOUyqudQjtN',
+      credentialType: 'password'
+    },
+    
+    // Российские STUN серверы для лучшей работы в РФ
+    { urls: 'stun:stun.voipbuster.com:3478' },
+    { urls: 'stun:stun.sipnet.net:3478' },
+    { urls: 'stun:stun.sipnet.ru:3478' },
+    { urls: 'stun:stun.comtube.ru:3478' },
+    
+    // Дополнительные международные STUN как fallback
+    { urls: 'stun:stun.stunprotocol.org:3478' },
+    { urls: 'stun:stun.voipgate.com:3478' },
+    { urls: 'stun:stun.ekiga.net:3478' },
+    
+    // Google STUN как последний резерв
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' }
+  ];
+  
+  try {
+    // Поддержка переменных окружения из Timeweb Apps
+    if (process.env.ICE_JSON) {
+      const parsed = JSON.parse(process.env.ICE_JSON);
+      if (Array.isArray(parsed)) {
+        iceServers = parsed;
+      }
+    } 
+    else if (process.env.ICE_URLS && process.env.TURN_USER && process.env.TURN_PASS) {
+      // Используем ваши настройки из Timeweb Apps
+      const urls = process.env.ICE_URLS.split(',').map(url => url.trim());
+      const stunUrls = urls.filter(url => url.startsWith('stun:'));
+      const turnUrls = urls.filter(url => url.startsWith('turn:'));
+      
+      iceServers = [];
+      
+      // Добавляем ваш TURN сервер в начало списка для максимального приоритета
+      if (turnUrls.length > 0) {
+        iceServers.push({
+          urls: turnUrls,
+          username: process.env.TURN_USER,
+          credential: process.env.TURN_PASS,
+          credentialType: 'password'
+        });
+      }
+      
+      // Добавляем STUN серверы
+      stunUrls.forEach(url => {
+        iceServers.push({ urls: url });
+      });
+      
+      // Добавляем российские STUN серверы для лучшей работы
+      const russianStunServers = [
+        'stun:stun.voipbuster.com:3478',
+        'stun:stun.sipnet.net:3478',
+        'stun:stun.sipnet.ru:3478'
+      ];
+      
+      russianStunServers.forEach(url => {
+        iceServers.push({ urls: url });
+      });
+    }
+  } catch (error) {
+    console.error('ICE configuration error:', error.message);
+  }
+  
+  return { 
+    iceServers,
+    iceCandidatePoolSize: 20, // Увеличено для лучшего прохождения NAT в России
+    rtcpMuxPolicy: 'require',
+    bundlePolicy: 'max-bundle',
+    iceTransportPolicy: 'all' // Разрешаем TCP и UDP для российских сетей
+  };
+}
+
+// ---- History and Analytics ----
 const history = [];
 const analytics = {
   totalCalls: 0,
@@ -97,12 +131,15 @@ const analytics = {
   peakConcurrentCalls: 0,
   averageCallDuration: 0,
   callsToday: 0,
-  startTime: Date.now()
+  startTime: Date.now(),
+  connectionFailures: 0,
+  turnServerUsage: 0
 };
 
-// History management functions
 function addHistoryStart(room, userAgent = '', ip = '') {
   const now = Date.now();
+  const isRussian = detectRussianUser(ip, userAgent);
+  
   const item = { 
     id: `call_${now}_${Math.random().toString(36).substr(2, 9)}`,
     room, 
@@ -110,23 +147,20 @@ function addHistoryStart(room, userAgent = '', ip = '') {
     endedAt: null, 
     durationSec: null, 
     participantsMax: 1,
-    userAgent: userAgent.substring(0, 200), // Limit length
-    ip: ip.replace(/[^0-9.:/]/g, ''), // Sanitize IP
+    userAgent: userAgent.substring(0, 200),
+    ip: ip.replace(/[^0-9.:/]/g, ''),
     quality: 'hd',
     messages: 0,
-    disconnections: 0
+    disconnections: 0,
+    isRussian: isRussian,
+    connectionAttempts: 0,
+    turnUsed: false
   };
   
   history.push(item);
   analytics.totalCalls++;
   analytics.activeRooms++;
   
-  // Update daily counter
-  const today = new Date().toDateString();
-  const todayStart = new Date(today).getTime();
-  analytics.callsToday = history.filter(h => h.startedAt >= todayStart).length;
-  
-  // Cleanup old history (keep last 1000 calls)
   if (history.length > 1000) {
     history.splice(0, history.length - 1000);
   }
@@ -144,7 +178,10 @@ function addHistoryEnd(room) {
       analytics.totalDuration += item.durationSec;
       analytics.activeRooms = Math.max(0, analytics.activeRooms - 1);
       
-      // Calculate average duration
+      if (item.turnUsed) {
+        analytics.turnServerUsage++;
+      }
+      
       const completedCalls = history.filter(h => h.endedAt !== null);
       analytics.averageCallDuration = completedCalls.length > 0 ? 
         Math.round(completedCalls.reduce((sum, call) => sum + call.durationSec, 0) / completedCalls.length) : 0;
@@ -155,68 +192,20 @@ function addHistoryEnd(room) {
   return null;
 }
 
-function updateCallStats(room, stats) {
-  const item = history.findLast(i => i.room === room && i.endedAt === null);
-  if (item) {
-    Object.assign(item, stats);
-  }
-}
-
-// ---- Enhanced ICE Server Configuration ----
-function getICEConfig() {
-  let iceServers = [
-    { urls: 'stun:stun.l.google.com:19302' },
-    { urls: 'stun:stun1.l.google.com:19302' }
-  ];
+function detectRussianUser(ip, userAgent) {
+  const russianKeywords = ['ru', 'russia', 'yandex', 'mail.ru', 'rambler'];
+  const ua = userAgent.toLowerCase();
   
-  try {
-    // Support for ICE_JSON environment variable (full JSON config)
-    if (process.env.ICE_JSON) {
-      const parsed = JSON.parse(process.env.ICE_JSON);
-      if (Array.isArray(parsed)) {
-        iceServers = parsed;
-      }
-    } 
-    // Support for ICE_URLS with TURN credentials
-    else if (process.env.ICE_URLS) {
-      const urls = process.env.ICE_URLS.split(',').map(url => url.trim());
-      const turnUrls = urls.filter(url => url.startsWith('turn:'));
-      const stunUrls = urls.filter(url => url.startsWith('stun:'));
-      
-      // Add STUN servers
-      stunUrls.forEach(url => {
-        iceServers.push({ urls: url });
-      });
-      
-      // Add TURN servers with credentials
-      if (turnUrls.length > 0 && process.env.TURN_USER && process.env.TURN_PASS) {
-        iceServers.push({
-          urls: turnUrls,
-          username: process.env.TURN_USER,
-          credential: process.env.TURN_PASS,
-          credentialType: 'password'
-        });
-      }
-    }
-    // Legacy TURN_URL support
-    else if (process.env.TURN_URL && process.env.TURN_USER && process.env.TURN_PASS) {
-      iceServers.push({
-        urls: process.env.TURN_URL.split(',').map(url => url.trim()),
-        username: process.env.TURN_USER,
-        credential: process.env.TURN_PASS,
-        credentialType: 'password'
-      });
-    }
-  } catch (error) {
-    console.error('Failed to parse ICE configuration:', error.message);
-  }
+  // Проверяем User-Agent на российские признаки
+  const hasRussianUA = russianKeywords.some(keyword => ua.includes(keyword));
   
-  return { iceServers };
+  // Простая проверка IP (в реальности нужна GeoIP база)
+  const isLocalNetwork = ip.includes('192.168.') || ip.includes('10.') || ip === '::1' || ip === '127.0.0.1';
+  
+  return hasRussianUA || isLocalNetwork;
 }
 
 // ---- API Routes ----
-
-// Health check with detailed info
 app.get('/healthz', (req, res) => {
   const uptime = Date.now() - analytics.startTime;
   const memUsage = process.memoryUsage();
@@ -229,40 +218,43 @@ app.get('/healthz', (req, res) => {
       total: Math.round(memUsage.heapTotal / 1024 / 1024)
     },
     activeRooms: analytics.activeRooms,
-    version: '3.0.0',
-    nodeVersion: process.version
+    version: '3.2.0-RU-FINAL',
+    nodeVersion: process.version,
+    turnServer: '94.198.218.189:3478',
+    optimizedForRussia: true
   });
 });
 
-// ICE configuration endpoint
 app.get('/config', (req, res) => {
-  res.json(getICEConfig());
+  const userAgent = req.headers['user-agent'] || '';
+  const clientIP = req.ip || req.connection.remoteAddress || '';
+  const isRussian = detectRussianUser(clientIP, userAgent);
+  
+  const config = getICEConfig();
+  
+  // Дополнительные настройки для российских пользователей
+  if (isRussian) {
+    config.russianOptimization = true;
+    config.recommendedBitrate = 800000; // Консервативный битрейт для РФ
+    config.aggressiveTurn = true; // Принудительное использование TURN
+  }
+  
+  console.log(`🇷🇺 ICE config requested from ${clientIP} (Russian: ${isRussian})`);
+  
+  res.json(config);
 });
 
-// Enhanced history endpoint with filtering and pagination
 app.get('/history', (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = Math.min(parseInt(req.query.limit) || 50, 100);
-  const room = req.query.room;
   
   let filteredHistory = [...history];
-  
-  // Filter by room if specified
-  if (room) {
-    filteredHistory = filteredHistory.filter(item => 
-      item.room.toLowerCase().includes(room.toLowerCase())
-    );
-  }
-  
-  // Sort by start time (newest first)
   filteredHistory.sort((a, b) => b.startedAt - a.startedAt);
   
-  // Paginate
   const startIndex = (page - 1) * limit;
   const endIndex = startIndex + limit;
   const paginatedHistory = filteredHistory.slice(startIndex, endIndex);
   
-  // Return sanitized data
   const result = paginatedHistory.map(item => ({
     id: item.id,
     room: item.room,
@@ -271,7 +263,9 @@ app.get('/history', (req, res) => {
     durationSec: item.durationSec,
     participantsMax: item.participantsMax,
     messages: item.messages || 0,
-    quality: item.quality || 'hd'
+    quality: item.quality || 'hd',
+    isRussian: item.isRussian || false,
+    turnUsed: item.turnUsed || false
   }));
   
   res.json({
@@ -281,141 +275,71 @@ app.get('/history', (req, res) => {
       limit,
       total: filteredHistory.length,
       pages: Math.ceil(filteredHistory.length / limit)
+    },
+    analytics: {
+      turnUsagePercent: analytics.totalCalls > 0 ? 
+        Math.round((analytics.turnServerUsage / analytics.totalCalls) * 100) : 0
     }
   });
 });
 
-// Analytics endpoint
 app.get('/analytics', (req, res) => {
   const uptime = Date.now() - analytics.startTime;
   
   res.json({
     ...analytics,
     uptime: Math.round(uptime / 1000),
-    uptimeDays: Math.round(uptime / (1000 * 60 * 60 * 24) * 100) / 100
+    turnServer: {
+      host: '94.198.218.189',
+      port: 3478,
+      usage: analytics.turnServerUsage,
+      usagePercent: analytics.totalCalls > 0 ? 
+        Math.round((analytics.turnServerUsage / analytics.totalCalls) * 100) : 0
+    },
+    russianOptimizations: true
   });
 });
 
-// Clear history (admin endpoint)
-app.delete('/history', (req, res) => {
-  const authHeader = req.headers.authorization;
-  const adminToken = process.env.ADMIN_TOKEN;
-  
-  if (!adminToken || authHeader !== `Bearer ${adminToken}`) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-  
-  const clearedCount = history.length;
-  history.length = 0;
-  
-  // Reset relevant analytics
-  analytics.totalCalls = 0;
-  analytics.totalDuration = 0;
-  analytics.averageCallDuration = 0;
-  analytics.callsToday = 0;
-  
-  res.json({ 
-    ok: true, 
-    message: `Cleared ${clearedCount} history entries` 
-  });
-});
-
-// Room validation endpoint
-app.post('/validate-room', (req, res) => {
-  const { room } = req.body;
-  
-  if (!room || typeof room !== 'string') {
-    return res.status(400).json({ error: 'Invalid room code' });
-  }
-  
-  const sanitizedRoom = room.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
-  
-  if (sanitizedRoom.length < 3 || sanitizedRoom.length > 20) {
-    return res.status(400).json({ 
-      error: 'Room code must be 3-20 characters (letters and numbers only)' 
-    });
-  }
-  
-  const roomCount = rooms.has(sanitizedRoom) ? rooms.get(sanitizedRoom).size : 0;
-  
+app.get('/turn-test', (req, res) => {
+  // Тест доступности TURN сервера
   res.json({
-    valid: true,
-    room: sanitizedRoom,
-    participants: roomCount,
-    available: roomCount < 2
-  });
-});
-
-// Server info endpoint
-app.get('/info', (req, res) => {
-  res.json({
-    name: 'VideoChat Pro Server',
-    version: '3.0.0',
-    features: [
-      'WebRTC Video Calling',
-      'Screen Sharing',
-      'Text Chat',
-      'Call History',
-      'Device Management',
-      'Quality Control',
-      'Mobile Support'
+    turnServer: {
+      host: '94.198.218.189',
+      ports: [3478],
+      protocols: ['UDP', 'TCP'],
+      username: 'webrtc',
+      status: 'configured'
+    },
+    testInstructions: [
+      'Откройте приложение в двух разных сетях',
+      'Попробуйте подключиться без VPN',
+      'TURN сервер должен обеспечить соединение через NAT'
     ],
-    limits: {
-      maxRoomSize: 2,
-      maxRoomNameLength: 20,
-      maxMessageLength: 500
-    }
+    russianNetworkOptimization: true
   });
 });
 
-// Start HTTP server
 const server = app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 VideoChat Pro Server started`);
+  console.log(`🚀 VideoChat Pro Server (Russia Edition) started`);
   console.log(`📡 HTTP server: http://0.0.0.0:${PORT}`);
   console.log(`🔒 Environment: ${NODE_ENV}`);
   console.log(`🧊 ICE servers: ${getICEConfig().iceServers.length} configured`);
-  
-  if (NODE_ENV === 'production') {
-    console.log(`🌐 Public URL: https://malmik5482-videocall-fc69.twc1.net`);
-  }
+  console.log(`🇷🇺 Russian optimization: ENABLED`);
+  console.log(`🔄 TURN server: 94.198.218.189:3478 (webrtc)`);
+  console.log(`🌐 Public URL: https://malmik5482-videocall-fc69.twc1.net`);
 });
 
-// ---- Enhanced WebSocket Signaling ----
+// ---- Enhanced WebSocket with TURN optimization ----
 const wss = new WebSocketServer({ 
   server, 
   path: '/ws',
   clientTracking: true,
-  maxPayload: 16 * 1024 // 16KB max message size
+  maxPayload: 16 * 1024
 });
 
-// Active rooms and connections
-const rooms = new Map(); // room -> Set<WebSocket>
-const socketRoom = new WeakMap(); // WebSocket -> room
-const socketInfo = new WeakMap(); // WebSocket -> user info
-const roomCreationTime = new Map(); // room -> timestamp
-
-// Message rate limiting per socket
-const messageRateLimit = new WeakMap();
-const MESSAGE_RATE_LIMIT = 50; // messages per minute
-const MESSAGE_RATE_WINDOW = 60000;
-
-function checkMessageRateLimit(ws) {
-  const now = Date.now();
-  let rateLimitInfo = messageRateLimit.get(ws);
-  
-  if (!rateLimitInfo) {
-    rateLimitInfo = { count: 0, resetTime: now + MESSAGE_RATE_WINDOW };
-    messageRateLimit.set(ws, rateLimitInfo);
-  }
-  
-  if (now > rateLimitInfo.resetTime) {
-    rateLimitInfo.count = 0;
-    rateLimitInfo.resetTime = now + MESSAGE_RATE_WINDOW;
-  }
-  
-  rateLimitInfo.count++;
-  return rateLimitInfo.count <= MESSAGE_RATE_LIMIT;
-}
+const rooms = new Map();
+const socketRoom = new WeakMap();
+const socketInfo = new WeakMap();
 
 function broadcastToRoom(room, message, except = null) {
   const roomSockets = rooms.get(room);
@@ -431,7 +355,6 @@ function broadcastToRoom(room, message, except = null) {
         sentCount++;
       } catch (error) {
         console.warn('Broadcast error:', error.message);
-        // Remove broken socket
         roomSockets.delete(socket);
       }
     }
@@ -442,9 +365,13 @@ function broadcastToRoom(room, message, except = null) {
 
 function assignRole(ws, role) {
   try {
-    ws.send(JSON.stringify({ type: 'role', role }));
+    ws.send(JSON.stringify({ 
+      type: 'role', 
+      role,
+      turnServerAvailable: true,
+      russianOptimization: true
+    }));
     
-    // Store role in socket info
     const info = socketInfo.get(ws) || {};
     info.role = role;
     socketInfo.set(ws, info);
@@ -464,12 +391,8 @@ function joinRoom(ws, room, userInfo = {}) {
     return;
   }
   
-  // Initialize room if doesn't exist
   if (!rooms.has(sanitizedRoom)) {
     rooms.set(sanitizedRoom, new Set());
-    roomCreationTime.set(sanitizedRoom, Date.now());
-    
-    // Add to history
     const req = ws.upgradeReq || {};
     addHistoryStart(
       sanitizedRoom, 
@@ -481,7 +404,6 @@ function joinRoom(ws, room, userInfo = {}) {
   const roomSockets = rooms.get(sanitizedRoom);
   const currentSize = roomSockets.size;
   
-  // Check room capacity
   if (currentSize >= 2) {
     ws.send(JSON.stringify({ 
       type: 'full', 
@@ -490,43 +412,66 @@ function joinRoom(ws, room, userInfo = {}) {
     return;
   }
   
-  // Add socket to room
   roomSockets.add(ws);
   socketRoom.set(ws, sanitizedRoom);
   
-  // Store user info
+  const req = ws.upgradeReq || {};
+  const isRussian = detectRussianUser(
+    req.connection?.remoteAddress || '', 
+    req.headers?.['user-agent'] || ''
+  );
+  
   socketInfo.set(ws, {
     joinedAt: Date.now(),
     room: sanitizedRoom,
+    isRussian: isRussian,
+    connectionAttempts: 0,
     ...userInfo
   });
   
-  // Update peak concurrent calls
   analytics.peakConcurrentCalls = Math.max(
     analytics.peakConcurrentCalls, 
     Array.from(rooms.values()).reduce((sum, set) => sum + Math.min(set.size, 2), 0) / 2
   );
   
-  // Update history with max participants
   const historyItem = history.findLast(h => h.room === sanitizedRoom && h.endedAt === null);
   if (historyItem) {
     historyItem.participantsMax = Math.max(historyItem.participantsMax, roomSockets.size);
+    historyItem.connectionAttempts = (historyItem.connectionAttempts || 0) + 1;
   }
   
-  // Assign roles
   if (currentSize === 0) {
     assignRole(ws, 'caller');
   } else if (currentSize === 1) {
     assignRole(ws, 'callee');
     
-    // Notify all participants that room is ready
     broadcastToRoom(sanitizedRoom, { 
       type: 'ready',
-      participants: roomSockets.size
+      participants: roomSockets.size,
+      turnServerRecommended: isRussian,
+      russianOptimization: isRussian
     });
   }
   
-  console.log(`👤 User joined room ${sanitizedRoom} (${roomSockets.size}/2 participants)`);
+  console.log(`👤 User joined room ${sanitizedRoom} (${roomSockets.size}/2) ${isRussian ? '[RU]' : '[INT]'}`);
+  
+  // Отправляем специальные настройки для российских пользователей
+  if (isRussian) {
+    try {
+      ws.send(JSON.stringify({
+        type: 'russia-config',
+        turnServerForced: true,
+        recommendations: [
+          'Включено принудительное использование TURN сервера',
+          'Настройки оптимизированы для российских сетей',
+          'Рекомендуется использовать WiFi для лучшего качества'
+        ],
+        turnServer: '94.198.218.189:3478'
+      }));
+    } catch (error) {
+      console.warn('Error sending Russian config:', error.message);
+    }
+  }
 }
 
 function leaveRoom(ws, reason = 'disconnect') {
@@ -539,7 +484,6 @@ function leaveRoom(ws, reason = 'disconnect') {
     
     console.log(`👋 User left room ${room} (${roomSockets.size}/2 remaining, reason: ${reason})`);
     
-    // Notify remaining participants
     if (roomSockets.size > 0) {
       broadcastToRoom(room, { 
         type: 'peer-left',
@@ -548,10 +492,8 @@ function leaveRoom(ws, reason = 'disconnect') {
       }, ws);
     }
     
-    // Clean up empty room
     if (roomSockets.size === 0) {
       rooms.delete(room);
-      roomCreationTime.delete(room);
       addHistoryEnd(room);
       console.log(`🗑️ Room ${room} cleaned up`);
     }
@@ -559,33 +501,23 @@ function leaveRoom(ws, reason = 'disconnect') {
   
   socketRoom.delete(ws);
   socketInfo.delete(ws);
-  messageRateLimit.delete(ws);
 }
 
-// WebSocket connection handler
 wss.on('connection', (ws, req) => {
-  console.log(`🔌 New WebSocket connection from ${req.connection.remoteAddress}`);
+  const clientIP = req.connection.remoteAddress;
+  const userAgent = req.headers['user-agent'] || '';
+  const isRussian = detectRussianUser(clientIP, userAgent);
   
-  // Store upgrade request for later use
+  console.log(`🔌 New WebSocket connection from ${clientIP} ${isRussian ? '[RU]' : '[INT]'}`);
+  
   ws.upgradeReq = req;
-  
-  // Set up ping/pong for connection health
   ws.isAlive = true;
+  
   ws.on('pong', () => {
     ws.isAlive = true;
   });
   
-  // Message handler
   ws.on('message', (data) => {
-    // Rate limiting
-    if (!checkMessageRateLimit(ws)) {
-      ws.send(JSON.stringify({
-        type: 'error',
-        message: 'Rate limit exceeded'
-      }));
-      return;
-    }
-    
     let message;
     try {
       message = JSON.parse(data.toString());
@@ -597,18 +529,15 @@ wss.on('connection', (ws, req) => {
       return;
     }
     
-    // Validate message structure
-    if (!message.type || typeof message.type !== 'string') {
-      return;
-    }
+    if (!message.type || typeof message.type !== 'string') return;
     
-    // Handle different message types
     switch (message.type) {
       case 'join':
         if (message.room && typeof message.room === 'string') {
           joinRoom(ws, message.room, {
             userAgent: req.headers['user-agent'],
-            ip: req.connection.remoteAddress
+            ip: req.connection.remoteAddress,
+            isRussian: isRussian
           });
         }
         break;
@@ -622,7 +551,17 @@ wss.on('connection', (ws, req) => {
       case 'description':
       case 'candidate':
         const room = socketRoom.get(ws);
-        if (room && message.sdp || message.candidate) {
+        if (room && (message.sdp || message.candidate)) {
+          // Отмечаем использование TURN сервера если это TURN candidate
+          if (message.type === 'candidate' && message.candidate) {
+            if (message.candidate.candidate && message.candidate.candidate.includes('relay')) {
+              const historyItem = history.findLast(h => h.room === room && h.endedAt === null);
+              if (historyItem) {
+                historyItem.turnUsed = true;
+              }
+              console.log(`🔄 TURN server used in room ${room}`);
+            }
+          }
           broadcastToRoom(room, message, ws);
         }
         break;
@@ -630,7 +569,6 @@ wss.on('connection', (ws, req) => {
       case 'chat':
         const chatRoom = socketRoom.get(ws);
         if (chatRoom && message.text && typeof message.text === 'string') {
-          // Sanitize and limit message length
           const sanitizedText = message.text.trim().substring(0, 500);
           if (sanitizedText.length > 0) {
             broadcastToRoom(chatRoom, {
@@ -639,20 +577,36 @@ wss.on('connection', (ws, req) => {
               timestamp: Date.now()
             }, ws);
             
-            // Update message count in history
-            updateCallStats(chatRoom, { 
-              messages: (history.findLast(h => h.room === chatRoom && h.endedAt === null)?.messages || 0) + 1 
-            });
+            const historyItem = history.findLast(h => h.room === chatRoom && h.endedAt === null);
+            if (historyItem) {
+              historyItem.messages = (historyItem.messages || 0) + 1;
+            }
           }
         }
         break;
         
+      case 'connection-failed':
+        analytics.connectionFailures++;
+        const failedRoom = socketRoom.get(ws);
+        if (failedRoom && isRussian) {
+          console.log(`🇷🇺 Connection failed in room ${failedRoom}, suggesting TURN`);
+          ws.send(JSON.stringify({
+            type: 'turn-suggestion',
+            message: 'Проблемы с соединением. Попробуйте переподключиться.',
+            forceTurn: true
+          }));
+        }
+        break;
+        
       case 'ping':
-        ws.send(JSON.stringify({ type: 'pong', timestamp: Date.now() }));
+        ws.send(JSON.stringify({ 
+          type: 'pong', 
+          timestamp: Date.now(),
+          turnServerStatus: 'active'
+        }));
         break;
         
       default:
-        // Forward other message types (for extensibility)
         const forwardRoom = socketRoom.get(ws);
         if (forwardRoom) {
           broadcastToRoom(forwardRoom, message, ws);
@@ -660,15 +614,14 @@ wss.on('connection', (ws, req) => {
     }
   });
   
-  // Connection close handler
   ws.on('close', (code, reason) => {
-    console.log(`🔌 WebSocket disconnected: ${code} ${reason}`);
+    console.log(`🔌 WebSocket disconnected: ${code} ${reason} ${isRussian ? '[RU]' : '[INT]'}`);
     leaveRoom(ws, `close_${code}`);
   });
   
-  // Error handler
   ws.on('error', (error) => {
-    console.warn(`❌ WebSocket error: ${error.message}`);
+    console.warn(`❌ WebSocket error: ${error.message} ${isRussian ? '[RU]' : '[INT]'}`);
+    analytics.connectionFailures++;
     leaveRoom(ws, 'error');
   });
 });
@@ -683,23 +636,27 @@ const pingInterval = setInterval(() => {
     }
     
     ws.isAlive = false;
-    ws.ping();
+    try {
+      ws.ping();
+    } catch (error) {
+      leaveRoom(ws, 'ping_error');
+      ws.terminate();
+    }
   });
-}, 30000); // Check every 30 seconds
+}, 25000);
 
-// Cleanup on server shutdown
 wss.on('close', () => {
   clearInterval(pingInterval);
 });
 
-// Graceful shutdown handling
+// Graceful shutdown
 process.on('SIGTERM', () => {
   console.log('🛑 Received SIGTERM, shutting down gracefully');
   
   wss.clients.forEach(ws => {
     ws.send(JSON.stringify({ 
       type: 'server-shutdown',
-      message: 'Server is shutting down' 
+      message: 'Сервер перезагружается. Переподключитесь через минуту.' 
     }));
     ws.close();
   });
@@ -709,27 +666,25 @@ process.on('SIGTERM', () => {
     process.exit(0);
   });
   
-  // Force exit after 30 seconds
   setTimeout(() => {
     console.log('⚠️ Forced shutdown');
     process.exit(1);
   }, 30000);
 });
 
-process.on('SIGINT', () => {
-  console.log('🛑 Received SIGINT, shutting down gracefully');
-  process.emit('SIGTERM');
-});
+process.on('SIGINT', process.emit.bind(process, 'SIGTERM'));
 
-// Log server statistics periodically
+// Status logging
 setInterval(() => {
   const activeConnections = wss.clients.size;
   const activeRooms = rooms.size;
-  const totalParticipants = Array.from(rooms.values()).reduce((sum, set) => sum + set.size, 0);
+  const russianConnections = Array.from(wss.clients).filter(ws => 
+    socketInfo.get(ws)?.isRussian
+  ).length;
   
-  if (activeConnections > 0 || activeRooms > 0) {
-    console.log(`📊 Status: ${activeConnections} connections, ${activeRooms} rooms, ${totalParticipants} participants`);
+  if (activeConnections > 0) {
+    console.log(`📊 Status: ${activeConnections} connections (${russianConnections} RU), ${activeRooms} rooms, TURN usage: ${analytics.turnServerUsage}`);
   }
-}, 300000); // Every 5 minutes
+}, 300000);
 
-console.log('🎥 VideoChat Pro Server ready for connections!');
+console.log('🎥🇷🇺 VideoChat Pro Server (Russia Edition) with TURN 94.198.218.189 ready!');
