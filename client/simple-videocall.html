@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>📞 VideoCall Pro - Простые видеозвонки</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .container {
+            text-align: center;
+            padding: 20px;
+            max-width: 800px;
+            width: 90%;
+        }
+        
+        .header {
+            margin-bottom: 40px;
+        }
+        
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .header p {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+        
+        .video-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin: 30px 0;
+            max-height: 60vh;
+        }
+        
+        .video-wrapper {
+            background: rgba(0,0,0,0.3);
+            border-radius: 15px;
+            overflow: hidden;
+            position: relative;
+            aspect-ratio: 16/9;
+        }
+        
+        video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 15px;
+        }
+        
+        .video-label {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0,0,0,0.7);
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        
+        .controls {
+            margin: 30px 0;
+        }
+        
+        .room-input {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        
+        input[type="text"] {
+            padding: 15px 20px;
+            border: none;
+            border-radius: 25px;
+            font-size: 16px;
+            background: rgba(255,255,255,0.9);
+            color: #333;
+            min-width: 200px;
+            text-align: center;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+        
+        .button {
+            padding: 15px 30px;
+            border: none;
+            border-radius: 25px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            min-width: 150px;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(45deg, #4CAF50, #45a049);
+            color: white;
+        }
+        
+        .btn-danger {
+            background: linear-gradient(45deg, #f44336, #da190b);
+            color: white;
+        }
+        
+        .btn-secondary {
+            background: linear-gradient(45deg, #2196F3, #0b7dda);
+            color: white;
+        }
+        
+        .button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+        }
+        
+        .button:disabled {
+            background: #666;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .status {
+            background: rgba(0,0,0,0.2);
+            padding: 15px;
+            border-radius: 10px;
+            margin: 20px 0;
+            font-weight: bold;
+        }
+        
+        .status.connected {
+            background: rgba(76, 175, 80, 0.3);
+            border-left: 4px solid #4CAF50;
+        }
+        
+        .status.connecting {
+            background: rgba(255, 152, 0, 0.3);
+            border-left: 4px solid #FF9800;
+        }
+        
+        .status.error {
+            background: rgba(244, 67, 54, 0.3);
+            border-left: 4px solid #f44336;
+        }
+        
+        .features {
+            margin-top: 30px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+        
+        .feature {
+            background: rgba(255,255,255,0.1);
+            padding: 15px;
+            border-radius: 10px;
+            backdrop-filter: blur(10px);
+        }
+        
+        .feature h3 {
+            margin-bottom: 10px;
+            font-size: 1.1em;
+        }
+        
+        .feature p {
+            font-size: 0.9em;
+            opacity: 0.8;
+        }
+        
+        @media (max-width: 768px) {
+            .video-container {
+                grid-template-columns: 1fr;
+            }
+            
+            .room-input {
+                flex-direction: column;
+            }
+            
+            .header h1 {
+                font-size: 2em;
+            }
+        }
+        
+        .quality-indicator {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0,0,0,0.7);
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+        }
+        
+        .quality-excellent { color: #4CAF50; }
+        .quality-good { color: #FF9800; }
+        .quality-poor { color: #f44336; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📞 VideoCall Pro</h1>
+            <p>Простые и качественные видеозвонки для России</p>
+        </div>
+        
+        <div class="video-container" id="videoContainer" style="display: none;">
+            <div class="video-wrapper">
+                <video id="localVideo" autoplay muted playsinline></video>
+                <div class="video-label">Вы</div>
+                <div class="quality-indicator" id="localQuality">●</div>
+            </div>
+            <div class="video-wrapper">
+                <video id="remoteVideo" autoplay playsinline></video>
+                <div class="video-label">Собеседник</div>
+                <div class="quality-indicator" id="remoteQuality">●</div>
+            </div>
+        </div>
+        
+        <div class="controls">
+            <div class="room-input">
+                <input type="text" id="roomInput" placeholder="Введите код комнаты" maxlength="10">
+                <button class="button btn-primary" id="joinBtn" onclick="joinRoom()">
+                    📞 Подключиться
+                </button>
+            </div>
+            
+            <div style="display: none;" id="callControls">
+                <button class="button btn-danger" onclick="leaveRoom()">
+                    📱 Завершить звонок
+                </button>
+                <button class="button btn-secondary" onclick="toggleAudio()" id="audioBtn">
+                    🔊 Микрофон
+                </button>
+                <button class="button btn-secondary" onclick="toggleVideo()" id="videoBtn">
+                    📹 Камера
+                </button>
+            </div>
+        </div>
+        
+        <div class="status" id="status">
+            Введите код комнаты и нажмите "Подключиться"
+        </div>
+        
+        <div class="features">
+            <div class="feature">
+                <h3>🚀 Максимальная простота</h3>
+                <p>Просто введите код комнаты и звоните!</p>
+            </div>
+            <div class="feature">
+                <h3>🔥 Высокое качество</h3>
+                <p>Профессиональный TURN сервер в России</p>
+            </div>
+            <div class="feature">
+                <h3>⚡ Мгновенное подключение</h3>
+                <p>Оптимизация для российских сетей</p>
+            </div>
+            <div class="feature">
+                <h3>🛡️ Приватность</h3>
+                <p>P2P соединение, максимальная безопасность</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ====== МАКСИМАЛЬНО ПРОСТАЯ WebRTC РЕАЛИЗАЦИЯ ======
+        
+        let ws = null;
+        let pc = null;
+        let localStream = null;
+        let remoteStream = null;
+        let currentRoom = null;
+        let isAudioEnabled = true;
+        let isVideoEnabled = true;
+        
+        // Супер-оптимизированная конфигурация для России
+        const ICE_CONFIG = {
+            iceServers: [
+                // ВАШ МОЩНЫЙ TURN СЕРВЕР - МАКСИМАЛЬНЫЙ ПРИОРИТЕТ
+                {
+                    urls: [
+                        'turn:94.198.218.189:3478?transport=udp',
+                        'turn:94.198.218.189:3478?transport=tcp',
+                        'turns:94.198.218.189:5349?transport=tcp'
+                    ],
+                    username: 'webrtc',
+                    credential: 'pRr45XBJgdff9Z2Q4EdTLwOUyqudQjtN'
+                },
+                
+                // Российские STUN серверы для лучшего P2P
+                { urls: 'stun:stun.sipnet.ru:3478' },
+                { urls: 'stun:stun.comtube.ru:3478' },
+                { urls: 'stun:stun.voipbuster.com:3478' },
+                
+                // Резервные STUN
+                { urls: 'stun:stun.l.google.com:19302' },
+                { urls: 'stun:stun1.l.google.com:19302' }
+            ],
+            iceCandidatePoolSize: 20,
+            rtcpMuxPolicy: 'require',
+            bundlePolicy: 'max-bundle'
+        };
+        
+        // Качественные настройки медиа для России
+        const MEDIA_CONSTRAINTS = {
+            video: {
+                width: { ideal: 1280, max: 1920 },
+                height: { ideal: 720, max: 1080 },
+                frameRate: { ideal: 30, max: 30 },
+                facingMode: 'user'
+            },
+            audio: {
+                sampleRate: 44100,
+                echoCancellation: true,
+                noiseSuppression: true,
+                autoGainControl: true
+            }
+        };
+        
+        function updateStatus(message, type = 'info') {
+            const status = document.getElementById('status');
+            status.textContent = message;
+            status.className = 'status ' + type;
+            console.log(`[${type.toUpperCase()}] ${message}`);
+        }
+        
+        function updateQualityIndicator(elementId, quality) {
+            const indicator = document.getElementById(elementId);
+            indicator.className = 'quality-indicator quality-' + quality;
+            indicator.textContent = quality === 'excellent' ? '● HD' : 
+                                   quality === 'good' ? '● SD' : '● LOW';
+        }
+        
+        async function joinRoom() {
+            const roomInput = document.getElementById('roomInput');
+            const room = roomInput.value.trim().toUpperCase();
+            
+            if (!room || room.length < 3) {
+                alert('Введите код комнаты (минимум 3 символа)');
+                return;
+            }
+            
+            currentRoom = room;
+            document.getElementById('joinBtn').disabled = true;
+            updateStatus('Подключаемся...', 'connecting');
+            
+            try {
+                // Подключение к WebSocket
+                const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+                ws = new WebSocket(`${protocol}//${location.host}/ws`);
+                
+                ws.onopen = async () => {
+                    updateStatus('Получаем доступ к камере...', 'connecting');
+                    
+                    // Получаем медиа поток
+                    try {
+                        localStream = await navigator.mediaDevices.getUserMedia(MEDIA_CONSTRAINTS);
+                        document.getElementById('localVideo').srcObject = localStream;
+                        
+                        // Создаем WebRTC соединение
+                        await initializePeerConnection();
+                        
+                        // Присоединяемся к комнате
+                        ws.send(JSON.stringify({ type: 'join', room: currentRoom }));
+                        
+                        updateStatus('Ожидаем подключения собеседника...', 'connecting');
+                        showCallInterface();
+                        
+                    } catch (error) {
+                        console.error('Ошибка доступа к медиа:', error);
+                        updateStatus('Ошибка: Нет доступа к камере/микрофону', 'error');
+                        document.getElementById('joinBtn').disabled = false;
+                    }
+                };
+                
+                ws.onmessage = handleWebSocketMessage;
+                
+                ws.onclose = () => {
+                    updateStatus('Соединение потеряно', 'error');
+                    leaveRoom();
+                };
+                
+                ws.onerror = (error) => {
+                    console.error('WebSocket ошибка:', error);
+                    updateStatus('Ошибка соединения с сервером', 'error');
+                    document.getElementById('joinBtn').disabled = false;
+                };
+                
+            } catch (error) {
+                console.error('Ошибка подключения:', error);
+                updateStatus('Ошибка подключения', 'error');
+                document.getElementById('joinBtn').disabled = false;
+            }
+        }
+        
+        async function initializePeerConnection() {
+            pc = new RTCPeerConnection(ICE_CONFIG);
+            
+            // Добавляем локальные треки
+            localStream.getTracks().forEach(track => {
+                pc.addTrack(track, localStream);
+            });
+            
+            // Обработка входящих треков
+            pc.ontrack = (event) => {
+                const remoteVideo = document.getElementById('remoteVideo');
+                if (remoteVideo.srcObject !== event.streams[0]) {
+                    remoteVideo.srcObject = event.streams[0];
+                    remoteStream = event.streams[0];
+                    updateStatus('✅ Звонок подключен!', 'connected');
+                    updateQualityIndicator('remoteQuality', 'excellent');
+                }
+            };
+            
+            // Обработка ICE кандидатов
+            pc.onicecandidate = (event) => {
+                if (event.candidate && ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({
+                        type: 'candidate',
+                        candidate: event.candidate
+                    }));
+                }
+            };
+            
+            // Мониторинг состояния соединения
+            pc.onconnectionstatechange = () => {
+                const state = pc.connectionState;
+                console.log('Connection state:', state);
+                
+                if (state === 'connected') {
+                    updateStatus('✅ Отличное качество связи!', 'connected');
+                    updateQualityIndicator('localQuality', 'excellent');
+                    updateQualityIndicator('remoteQuality', 'excellent');
+                } else if (state === 'connecting' || state === 'checking') {
+                    updateStatus('Устанавливаем соединение...', 'connecting');
+                } else if (state === 'disconnected' || state === 'failed') {
+                    updateStatus('Соединение потеряно', 'error');
+                }
+            };
+        }
+        
+        async function handleWebSocketMessage(event) {
+            const message = JSON.parse(event.data);
+            
+            switch (message.type) {
+                case 'role':
+                    console.log('Роль назначена:', message.role);
+                    break;
+                    
+                case 'ready':
+                    if (message.participants === 2) {
+                        // Создаем предложение для звонка
+                        const offer = await pc.createOffer();
+                        await pc.setLocalDescription(offer);
+                        ws.send(JSON.stringify({
+                            type: 'description',
+                            sdp: offer
+                        }));
+                    }
+                    break;
+                    
+                case 'description':
+                    await pc.setRemoteDescription(message.sdp);
+                    
+                    // Если это предложение, создаем ответ
+                    if (message.sdp.type === 'offer') {
+                        const answer = await pc.createAnswer();
+                        await pc.setLocalDescription(answer);
+                        ws.send(JSON.stringify({
+                            type: 'description',
+                            sdp: answer
+                        }));
+                    }
+                    break;
+                    
+                case 'candidate':
+                    if (message.candidate) {
+                        await pc.addIceCandidate(message.candidate);
+                    }
+                    break;
+                    
+                case 'peer-left':
+                    updateStatus('Собеседник отключился', 'error');
+                    break;
+                    
+                case 'full':
+                    updateStatus('Комната заполнена (максимум 2 участника)', 'error');
+                    document.getElementById('joinBtn').disabled = false;
+                    break;
+            }
+        }
+        
+        function showCallInterface() {
+            document.getElementById('videoContainer').style.display = 'grid';
+            document.getElementById('callControls').style.display = 'block';
+            document.querySelector('.room-input').style.display = 'none';
+        }
+        
+        function hideCallInterface() {
+            document.getElementById('videoContainer').style.display = 'none';
+            document.getElementById('callControls').style.display = 'none';
+            document.querySelector('.room-input').style.display = 'flex';
+            document.getElementById('joinBtn').disabled = false;
+        }
+        
+        function leaveRoom() {
+            if (ws) {
+                ws.send(JSON.stringify({ type: 'leave' }));
+                ws.close();
+                ws = null;
+            }
+            
+            if (pc) {
+                pc.close();
+                pc = null;
+            }
+            
+            if (localStream) {
+                localStream.getTracks().forEach(track => track.stop());
+                localStream = null;
+            }
+            
+            document.getElementById('localVideo').srcObject = null;
+            document.getElementById('remoteVideo').srcObject = null;
+            
+            updateStatus('Введите код комнаты и нажмите "Подключиться"', 'info');
+            hideCallInterface();
+        }
+        
+        function toggleAudio() {
+            if (localStream) {
+                isAudioEnabled = !isAudioEnabled;
+                localStream.getAudioTracks().forEach(track => {
+                    track.enabled = isAudioEnabled;
+                });
+                
+                const btn = document.getElementById('audioBtn');
+                btn.textContent = isAudioEnabled ? '🔊 Микрофон' : '🔇 Микрофон';
+                btn.style.opacity = isAudioEnabled ? '1' : '0.5';
+            }
+        }
+        
+        function toggleVideo() {
+            if (localStream) {
+                isVideoEnabled = !isVideoEnabled;
+                localStream.getVideoTracks().forEach(track => {
+                    track.enabled = isVideoEnabled;
+                });
+                
+                const btn = document.getElementById('videoBtn');
+                btn.textContent = isVideoEnabled ? '📹 Камера' : '📷 Камера';
+                btn.style.opacity = isVideoEnabled ? '1' : '0.5';
+            }
+        }
+        
+        // Автоматическое подключение по Enter
+        document.getElementById('roomInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                joinRoom();
+            }
+        });
+        
+        // Автоматическая генерация кода комнаты
+        function generateRoomCode() {
+            const code = Math.random().toString(36).substr(2, 6).toUpperCase();
+            document.getElementById('roomInput').value = code;
+        }
+        
+        // Инициализация
+        console.log('📞 VideoCall Pro загружен');
+        console.log('🔥 TURN сервер: 94.198.218.189:3478');
+        console.log('✨ Готов к видеозвонкам!');
+        
+        // Предложение сгенерировать код
+        setTimeout(() => {
+            if (!document.getElementById('roomInput').value) {
+                if (confirm('Сгенерировать случайный код комнаты?')) {
+                    generateRoomCode();
+                }
+            }
+        }, 1000);
+    </script>
+</body>
+</html>
