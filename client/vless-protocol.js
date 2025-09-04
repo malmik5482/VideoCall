@@ -73,33 +73,55 @@ class VLESSClient {
     return header.slice(0, offset);
   }
 
-  // Connect using WebSocket with proper VLESS protocol
+  // Connect using WebSocket proxy to VLESS server
   async connect() {
     return new Promise((resolve, reject) => {
       try {
-        // Use WebSocket to connect to VLESS server
-        const wsUrl = `wss://${this.config.address}:${this.config.port}${this.config.spx}`;
+        // Connect to WebSocket proxy through the proxy service URL
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const proxyHost = '8080-ip468ihcy403p6enirr3p-6532622b.e2b.dev';
+        const wsUrl = `${protocol}//${proxyHost}`;
         
-        console.log(`🔄 Connecting to VLESS: ${wsUrl}`);
+        console.log(`🔄 Connecting to VLESS proxy: ${wsUrl}`);
         
         this.socket = new WebSocket(wsUrl);
         this.socket.binaryType = 'arraybuffer';
         
         this.socket.onopen = () => {
-          console.log('✅ WebSocket connected, sending VLESS handshake');
-          
-          // Send VLESS protocol header
-          const header = this.createVLESSOHeader(1, 2, this.config.sni, 443);
-          this.socket.send(header.buffer);
-          
-          this.connected = true;
-          console.log('🛡️ VLESS tunnel established');
-          resolve(true);
+          console.log('✅ WebSocket proxy connected, waiting for VLESS tunnel');
+          // The proxy server handles VLESS handshake, we just wait for confirmation
         };
         
         this.socket.onmessage = (event) => {
-          if (this.onData) {
-            this.onData(new Uint8Array(event.data));
+          try {
+            // Handle both JSON control messages and binary data
+            if (typeof event.data === 'string') {
+              const message = JSON.parse(event.data);
+              
+              if (message.type === 'vless-connected') {
+                this.connected = true;
+                console.log('🛡️ VLESS tunnel established through proxy');
+                resolve(true);
+              } else if (message.type === 'vless-error') {
+                console.error('❌ VLESS proxy error:', message.error);
+                reject(new Error(message.error));
+              } else if (message.type === 'vless-disconnected') {
+                this.connected = false;
+                console.log('🔌 VLESS tunnel disconnected');
+                if (this.onClose) this.onClose();
+              }
+            } else {
+              // Binary data from VLESS server
+              if (this.onData) {
+                this.onData(new Uint8Array(event.data));
+              }
+            }
+          } catch (error) {
+            console.warn('VLESS message parse error:', error);
+            // If it's not JSON, treat as binary
+            if (this.onData) {
+              this.onData(new Uint8Array(event.data));
+            }
           }
         };
         

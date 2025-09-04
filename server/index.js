@@ -2,6 +2,7 @@ const path = require('path');
 const express = require('express');
 const cors = require('cors');
 const { WebSocketServer } = require('ws');
+const VLESSProxy = require('./vless-proxy');
 
 // Agora token generation
 let RtcTokenBuilder;
@@ -17,7 +18,11 @@ try {
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+const VLESS_PROXY_PORT = process.env.VLESS_PROXY_PORT || 8080;
 const NODE_ENV = process.env.NODE_ENV || 'development';
+
+// Initialize VLESS proxy server
+let vlessProxy = null;
 
 // Basic security
 app.disable('x-powered-by');
@@ -41,6 +46,91 @@ app.get('/vless', (req, res) => {
 // Simple VLESS route
 app.get('/simple', (req, res) => {
   res.sendFile(path.join(clientDir, 'simple-vless.html'));
+});
+
+// VLESS proxy control routes
+app.post('/vless/start', (req, res) => {
+  try {
+    if (vlessProxy) {
+      return res.json({ 
+        success: true, 
+        message: 'VLESS proxy already running',
+        status: vlessProxy.getStatus(),
+        proxyPort: VLESS_PROXY_PORT
+      });
+    }
+    
+    vlessProxy = new VLESSProxy({
+      vlessHost: '95.181.173.120',
+      vlessPort: 8443,
+      uuid: '89462a65-fafa-4f9a-9efd-2be01a001778'
+    });
+    
+    vlessProxy.start(VLESS_PROXY_PORT);
+    
+    console.log(`🛡️ VLESS proxy started on port ${VLESS_PROXY_PORT}`);
+    
+    res.json({
+      success: true,
+      message: 'VLESS proxy started successfully',
+      proxyPort: VLESS_PROXY_PORT,
+      wsUrl: `ws://localhost:${VLESS_PROXY_PORT}`,
+      vlessTarget: '95.181.173.120:8443'
+    });
+    
+  } catch (error) {
+    console.error('❌ Failed to start VLESS proxy:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to start VLESS proxy',
+      message: error.message
+    });
+  }
+});
+
+app.post('/vless/stop', (req, res) => {
+  try {
+    if (vlessProxy) {
+      vlessProxy.stop();
+      vlessProxy = null;
+      console.log('🛑 VLESS proxy stopped');
+      
+      res.json({
+        success: true,
+        message: 'VLESS proxy stopped successfully'
+      });
+    } else {
+      res.json({
+        success: true,
+        message: 'VLESS proxy was not running'
+      });
+    }
+  } catch (error) {
+    console.error('❌ Failed to stop VLESS proxy:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to stop VLESS proxy',
+      message: error.message
+    });
+  }
+});
+
+app.get('/vless/status', (req, res) => {
+  const status = vlessProxy ? vlessProxy.getStatus() : { running: false, connections: 0 };
+  
+  res.json({
+    success: true,
+    proxy: status,
+    port: VLESS_PROXY_PORT,
+    wsUrl: `ws://localhost:${VLESS_PROXY_PORT}`,
+    vlessConfig: {
+      host: '95.181.173.120',
+      port: 8443,
+      uuid: '89462a65-fafa-4f9a-9efd-2be01a001778',
+      security: 'reality',
+      sni: 'google.com'
+    }
+  });
 });
 
 // ---- Enhanced ICE Configuration for Russia with aggressive optimization ----
@@ -652,7 +742,23 @@ const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`🧊 ICE servers: ${getICEConfig().iceServers.length} configured`);
   console.log(`🇷🇺 Russian optimization: ENABLED`);
   console.log(`🔄 TURN server: 94.198.218.189:3478 (webrtc)`);
+  console.log(`🛡️ VLESS proxy port: ${VLESS_PROXY_PORT}`);
   console.log(`🌐 Public URL: https://malmik5482-videocall-fc69.twc1.net`);
+  
+  // Auto-start VLESS proxy
+  try {
+    vlessProxy = new VLESSProxy({
+      vlessHost: '95.181.173.120',
+      vlessPort: 8443,
+      uuid: '89462a65-fafa-4f9a-9efd-2be01a001778'
+    });
+    
+    vlessProxy.start(VLESS_PROXY_PORT);
+    console.log(`🛡️ VLESS proxy auto-started on port ${VLESS_PROXY_PORT}`);
+    
+  } catch (error) {
+    console.error('❌ Failed to auto-start VLESS proxy:', error.message);
+  }
 });
 
 // ---- Enhanced WebSocket with TURN optimization ----
