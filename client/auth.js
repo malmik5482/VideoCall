@@ -82,6 +82,26 @@ class AuthSystem {
                 }
             }
         });
+
+        // Обработчики кнопок регистрации и входа
+        document.addEventListener('click', (e) => {
+            if (e.target.matches('#registerBtn, #registerBtn *')) {
+                e.preventDefault();
+                this.registerUser();
+            } else if (e.target.matches('#loginBtn, #loginBtn *')) {
+                e.preventDefault();
+                this.loginUser();
+            } else if (e.target.matches('#requestPermissionsBtn, #requestPermissionsBtn *')) {
+                e.preventDefault();
+                this.requestPermissions();
+            } else if (e.target.matches('.switch-to-login')) {
+                e.preventDefault();
+                this.switchToLogin();
+            } else if (e.target.matches('.switch-to-register')) {
+                e.preventDefault();
+                this.switchToRegister();
+            }
+        });
     }
 
     formatPhoneNumber(input) {
@@ -121,11 +141,21 @@ class AuthSystem {
     }
 
     async registerUser() {
+        console.log('🚀 Попытка регистрации пользователя...');
+        
         const nameInput = document.getElementById('userName');
         const phoneInput = document.getElementById('userPhone');
         
+        if (!nameInput || !phoneInput) {
+            console.error('❌ Поля ввода не найдены');
+            alert('Ошибка: Поля ввода не найдены');
+            return;
+        }
+        
         const name = nameInput.value.trim();
         const phone = this.cleanPhoneNumber(phoneInput.value);
+        
+        console.log('📝 Данные для регистрации:', { name, phone });
         
         if (!this.validateRegistrationData(name, phone)) {
             return;
@@ -153,7 +183,7 @@ class AuthSystem {
             localStorage.setItem('cosmosChat_user', JSON.stringify(user));
             this.currentUser = user;
 
-            NotificationSystem.show('🚀 Регистрация успешна! Добро пожаловать в CosmosChat!', 'cosmic');
+            this.showMessage('🚀 Регистрация успешна! Добро пожаловать в CosmosChat!', 'success');
 
             // Переходим к разрешениям
             await ScreenTransitions.fadeOut(document.getElementById('registrationForm'));
@@ -161,7 +191,7 @@ class AuthSystem {
 
         } catch (error) {
             console.error('❌ Ошибка регистрации:', error);
-            NotificationSystem.show('❌ Ошибка регистрации. Попробуйте еще раз.', 'error');
+            this.showMessage('❌ Ошибка регистрации. Попробуйте еще раз.', 'error');
         } finally {
             this.setButtonLoading(button, false);
         }
@@ -172,7 +202,7 @@ class AuthSystem {
         const phone = this.cleanPhoneNumber(phoneInput.value);
         
         if (!this.validatePhone(phone)) {
-            NotificationSystem.show('📱 Введите корректный номер телефона', 'warning');
+            this.showMessage('📱 Введите корректный номер телефона', 'warning');
             return;
         }
 
@@ -189,21 +219,21 @@ class AuthSystem {
                 const user = JSON.parse(savedUser);
                 if (user.phone === phone) {
                     this.currentUser = user;
-                    NotificationSystem.show(`👋 С возвращением, ${user.name}!`, 'success');
+                    this.showMessage(`👋 С возвращением, ${user.name}!`, 'success');
                     
                     // Переходим к разрешениям
                     await ScreenTransitions.fadeOut(document.getElementById('loginForm'));
                     this.showPermissionsScreen();
                 } else {
-                    NotificationSystem.show('❌ Пользователь с таким номером не найден', 'error');
+                    this.showMessage('❌ Пользователь с таким номером не найден', 'error');
                 }
             } else {
-                NotificationSystem.show('❌ Пользователь не найден. Пожалуйста, зарегистрируйтесь.', 'warning');
+                this.showMessage('❌ Пользователь не найден. Пожалуйста, зарегистрируйтесь.', 'warning');
             }
 
         } catch (error) {
             console.error('❌ Ошибка входа:', error);
-            NotificationSystem.show('❌ Ошибка входа. Попробуйте еще раз.', 'error');
+            this.showMessage('❌ Ошибка входа. Попробуйте еще раз.', 'error');
         } finally {
             this.setButtonLoading(button, false);
         }
@@ -211,21 +241,32 @@ class AuthSystem {
 
     validateRegistrationData(name, phone) {
         if (!name || name.length < 2) {
-            NotificationSystem.show('👤 Введите ваше имя (минимум 2 символа)', 'warning');
+            this.showMessage('👤 Введите ваше имя (минимум 2 символа)');
             return false;
         }
 
         if (name.length > 50) {
-            NotificationSystem.show('👤 Имя слишком длинное (максимум 50 символов)', 'warning');
+            this.showMessage('👤 Имя слишком длинное (максимум 50 символов)');
             return false;
         }
 
         if (!this.validatePhone(phone)) {
-            NotificationSystem.show('📱 Введите корректный номер телефона', 'warning');
+            this.showMessage('📱 Введите корректный номер телефона');
             return false;
         }
 
         return true;
+    }
+
+    showMessage(message, type = 'warning') {
+        // Пробуем показать через систему уведомлений
+        if (this.showMessage) {
+            window.cosmosApp.modules.notifications.show(message, type);
+        } else {
+            // Резервный вариант - alert
+            alert(message);
+            console.log(message);
+        }
     }
 
     validatePhone(phone) {
@@ -318,7 +359,7 @@ class AuthSystem {
             cameraStatus.textContent = '✅';
             micStatus.textContent = '✅';
             
-            NotificationSystem.show('🎉 Разрешения предоставлены! Добро пожаловать в CosmosChat!', 'success');
+            this.showMessage('🎉 Разрешения предоставлены! Добро пожаловать в CosmosChat!', 'success');
             
             // Сохраняем разрешения
             localStorage.setItem('cosmosChat_permissions', JSON.stringify(this.permissions));
@@ -336,7 +377,7 @@ class AuthSystem {
             cameraStatus.textContent = '❌';
             micStatus.textContent = '❌';
             
-            NotificationSystem.show('⚠️ Для полноценной работы приложения необходимы разрешения на камеру и микрофон', 'warning');
+            this.showMessage('⚠️ Для полноценной работы приложения необходимы разрешения на камеру и микрофон', 'warning');
             
             // Даем возможность войти без разрешений (ограниченный функционал)
             setTimeout(() => {
@@ -401,7 +442,7 @@ class AuthSystem {
         
         // Показываем уведомление о статусе разрешений
         if (!hasPermissions) {
-            NotificationSystem.show(
+            this.showMessage(
                 '⚠️ Некоторые функции недоступны без разрешений на камеру и микрофон. Вы можете предоставить их позже в настройках.',
                 'warning',
                 8000
