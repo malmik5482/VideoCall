@@ -1166,3 +1166,417 @@ body::before {
 ::-webkit-scrollbar-thumb:hover {
   background: var(--border-hover);
 }
+
+/* ========== RUSSIAN NETWORK OPTIMIZATION STYLES ========== */
+
+/* Connection Quality Indicator */
+.connection-quality-indicator {
+  position: fixed;
+  top: 120px;
+  left: 20px;
+  z-index: 150;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 16px;
+  backdrop-filter: blur(20px);
+  box-shadow: var(--shadow);
+  min-width: 200px;
+  transition: all 0.3s ease;
+}
+
+.connection-quality-indicator.minimized {
+  padding: 8px 12px;
+  min-width: auto;
+}
+
+.quality-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.quality-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.minimize-btn {
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.minimize-btn:hover {
+  background: var(--bg-glass);
+  color: var(--text-primary);
+}
+
+.quality-metrics {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.8rem;
+}
+
+.quality-metric {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.metric-label {
+  color: var(--text-secondary);
+}
+
+.metric-value {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.metric-value.excellent { color: var(--success); }
+.metric-value.good { color: var(--info); }
+.metric-value.fair { color: var(--warning); }
+.metric-value.poor { color: var(--danger); }
+
+/* TURN Server Status */
+.turn-status {
+  position: fixed;
+  bottom: 100px;
+  left: 20px;
+  z-index: 150;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 16px;
+  backdrop-filter: blur(20px);
+  box-shadow: var(--shadow);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  transition: all 0.3s ease;
+}
+
+.turn-indicator {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  transition: all 0.3s ease;
+}
+
+.turn-indicator.active {
+  background: var(--success);
+  box-shadow: 0 0 12px rgba(76, 175, 80, 0.5);
+}
+
+.turn-indicator.connecting {
+  background: var(--warning);
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.turn-status-text {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.turn-status.active .turn-status-text {
+  color: var(--success);
+}
+
+.turn-status.connecting .turn-status-text {
+  color: var(--warning);
+}
+
+/* Russian Network Badge */
+.russian-network-badge {
+  position: fixed;
+  top: 120px;
+  right: 20px;
+  z-index: 150;
+  background: linear-gradient(135deg, #0066cc, #cc0000);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 20px;
+  padding: 8px 16px;
+  backdrop-filter: blur(20px);
+  box-shadow: var(--shadow);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: white;
+  font-size: 0.8rem;
+  font-weight: 600;
+  opacity: 0.9;
+  transition: all 0.3s ease;
+}
+
+.russian-network-badge:hover {
+  opacity: 1;
+  transform: translateY(-2px);
+}
+
+.russian-flag {
+  width: 20px;
+  height: 14px;
+  border-radius: 2px;
+  background: linear-gradient(to bottom, white 0%, white 33%, #0066cc 33%, #0066cc 66%, #cc0000 66%, #cc0000 100%);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+/* Adaptive Quality Controls */
+.adaptive-controls {
+  position: fixed;
+  bottom: 160px;
+  left: 20px;
+  z-index: 150;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  backdrop-filter: blur(20px);
+  box-shadow: var(--shadow);
+  min-width: 220px;
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.3s ease;
+}
+
+.adaptive-controls.visible {
+  opacity: 1;
+  visibility: visible;
+}
+
+.adaptive-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.adaptive-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.auto-switch {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.auto-switch-toggle {
+  width: 36px;
+  height: 20px;
+  border-radius: 10px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  position: relative;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.auto-switch-toggle.active {
+  background: var(--primary);
+  border-color: var(--primary);
+}
+
+.auto-switch-toggle::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: white;
+  transition: all 0.3s ease;
+}
+
+.auto-switch-toggle.active::after {
+  transform: translateX(16px);
+}
+
+.quality-presets {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.quality-preset {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--bg-glass);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 0.8rem;
+}
+
+.quality-preset:hover {
+  background: var(--bg-tertiary);
+  border-color: var(--border-hover);
+}
+
+.quality-preset.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: white;
+}
+
+.preset-name {
+  font-weight: 600;
+}
+
+.preset-details {
+  color: var(--text-muted);
+  font-size: 0.7rem;
+}
+
+.quality-preset.active .preset-details {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+/* Network Troubleshooting Panel */
+.troubleshooting-panel {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  z-index: 150;
+  width: 320px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  backdrop-filter: blur(20px);
+  box-shadow: var(--shadow-lg);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(20px);
+  transition: all 0.3s ease;
+}
+
+.troubleshooting-panel.visible {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+.troubleshooting-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.troubleshooting-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.troubleshooting-content {
+  padding: 16px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.troubleshooting-tip {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px;
+  background: var(--bg-glass);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  margin-bottom: 12px;
+  transition: all 0.2s ease;
+}
+
+.troubleshooting-tip:hover {
+  background: var(--bg-tertiary);
+  border-color: var(--border-hover);
+}
+
+.tip-icon {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--info);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  font-weight: 600;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.tip-content {
+  flex: 1;
+}
+
+.tip-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+
+.tip-description {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+/* Mobile Optimizations for Russian Features */
+@media (max-width: 768px) {
+  .connection-quality-indicator,
+  .turn-status,
+  .adaptive-controls {
+    left: 10px;
+    right: 10px;
+    width: auto;
+    min-width: auto;
+  }
+  
+  .russian-network-badge {
+    right: 10px;
+    top: 80px;
+  }
+  
+  .troubleshooting-panel {
+    left: 10px;
+    right: 10px;
+    width: auto;
+    bottom: 10px;
+  }
+  
+  .quality-metrics {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  
+  .quality-metric {
+    flex: 1;
+    min-width: 80px;
+  }
+}

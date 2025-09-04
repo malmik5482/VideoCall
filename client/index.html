@@ -261,8 +261,83 @@
 
       <!-- Toast Notifications -->
       <div id="toastContainer" class="toast-container"></div>
+      
+      <!-- Russian Network Diagnostics Elements -->
+      <div id="connectionQualityIndicator" class="connection-quality-indicator">
+        <div class="quality-header">
+          <span class="quality-title">Качество сети</span>
+          <button class="minimize-btn" id="minimizeQualityBtn">-</button>
+        </div>
+        <div class="quality-metrics">
+          <div class="quality-metric">
+            <span class="metric-label">Скорость:</span>
+            <span class="metric-value" id="connectionSpeed">Проверка...</span>
+          </div>
+          <div class="quality-metric">
+            <span class="metric-label">Задержка:</span>
+            <span class="metric-value" id="connectionLatency">Проверка...</span>
+          </div>
+          <div class="quality-metric">
+            <span class="metric-label">Качество:</span>
+            <span class="metric-value" id="networkQuality">Проверка...</span>
+          </div>
+        </div>
+      </div>
+
+      <div id="turnStatus" class="turn-status">
+        <div class="turn-indicator" id="turnIndicator"></div>
+        <span class="turn-status-text" id="turnStatusText">TURN Сервер: Проверка...</span>
+      </div>
+
+      <div id="russianNetworkBadge" class="russian-network-badge">
+        <div class="russian-flag"></div>
+        <span>Оптимизировано для России</span>
+      </div>
+
+      <div id="adaptiveControls" class="adaptive-controls">
+        <div class="adaptive-header">
+          <span class="adaptive-title">Адаптивное качество</span>
+          <div class="auto-switch">
+            <span>Авто</span>
+            <div class="auto-switch-toggle active" id="autoQualityToggle"></div>
+          </div>
+        </div>
+        <div class="quality-presets">
+          <div class="quality-preset" data-quality="ultra">
+            <span class="preset-name">Максимальное</span>
+            <span class="preset-details">4K, 60fps</span>
+          </div>
+          <div class="quality-preset active" data-quality="hd">
+            <span class="preset-name">HD</span>
+            <span class="preset-details">1080p, 30fps</span>
+          </div>
+          <div class="quality-preset" data-quality="sd">
+            <span class="preset-name">SD</span>
+            <span class="preset-details">720p, 24fps</span>
+          </div>
+          <div class="quality-preset" data-quality="mobile">
+            <span class="preset-name">Мобильное</span>
+            <span class="preset-details">480p, 20fps</span>
+          </div>
+        </div>
+      </div>
+
+      <div id="troubleshootingPanel" class="troubleshooting-panel">
+        <div class="troubleshooting-header">
+          <span class="troubleshooting-title">Рекомендации</span>
+          <button class="close-btn" id="closeTroubleshootingBtn">
+            <svg viewBox="0 0 24 24" fill="currentColor">
+              <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+            </svg>
+          </button>
+        </div>
+        <div class="troubleshooting-content" id="troubleshootingContent">
+          <!-- Dynamically populated with recommendations -->
+        </div>
+      </div>
     </div>
 
+    <script src="russian-diagnostics.js"></script>
     <script src="app.js"></script>
   </body>
 </html>

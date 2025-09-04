@@ -495,12 +495,24 @@ class VideoCallApp {
   }
 
   async createPeerConnection() {
+    // Адаптивная конфигурация в зависимости от типа сети
+    let iceTransportPolicy = 'all'; // Начинаем с попытки P2P
+    
+    // Для мобильных сетей сразу используем TURN
+    if (this.environment.isMobile || this.environment.connectionType === 'poor' || this.environment.connectionType === 'fair') {
+      iceTransportPolicy = 'relay';
+      console.log('🔄 Forcing TURN for mobile/poor connection');
+    }
+    
     const config = {
       iceServers: this.iceServers,
       iceCandidatePoolSize: 30,
       rtcpMuxPolicy: 'require',
       bundlePolicy: 'max-bundle',
-      iceTransportPolicy: 'relay' // Force TURN for Russia
+      iceTransportPolicy: iceTransportPolicy,
+      // Дополнительные настройки для российских условий
+      iceGatheringPolicy: 'all',
+      connectionTimeout: 15000
     };
     
     this.pc = new RTCPeerConnection(config);
@@ -538,6 +550,9 @@ class VideoCallApp {
 
     this.pc.onicecandidate = (event) => {
       if (event.candidate) {
+        // Проверяем, используется ли TURN
+        this.confirmTurnConnection(event.candidate);
+        
         this.sendSignalMessage({
           type: 'candidate',
           candidate: event.candidate
@@ -547,7 +562,6 @@ class VideoCallApp {
 
     this.pc.onconnectionstatechange = () => {
       const state = this.pc.connectionState;
-      console.log(`Connection state: ${state}`);
       this.handleConnectionStateChange(state);
     };
 
@@ -1123,6 +1137,278 @@ class VideoCallApp {
   handleCriticalError(error) {
     console.error('CRITICAL ERROR:', error);
     this.showToast('error', 'Критическая ошибка. Перезагрузите страницу.', 10000);
+  }
+
+  // ========== НОВЫЕ ФУНКЦИИ ДЛЯ РОССИЙСКИХ УСЛОВИЙ ==========
+  
+  // Диагностика сетевого соединения в реальном времени
+  async performNetworkDiagnostics() {
+    const startTime = Date.now();
+    const diagnostics = {
+      connectionSpeed: 0,
+      rtt: 0,
+      packetLoss: 0,
+      networkType: 'unknown'
+    };
+
+    try {
+      // Определяем тип сети
+      if ('connection' in navigator) {
+        const conn = navigator.connection;
+        diagnostics.connectionSpeed = conn.downlink || 10;
+        diagnostics.networkType = conn.effectiveType || '4g';
+        
+        if (conn.type) {
+          if (conn.type.includes('cellular')) diagnostics.networkType = 'mobile';
+          else if (conn.type.includes('wifi')) diagnostics.networkType = 'wifi';
+        }
+      }
+
+      // Измеряем RTT через ping к серверу
+      try {
+        const pingStart = Date.now();
+        await fetch('/healthz', { method: 'HEAD' });
+        diagnostics.rtt = Date.now() - pingStart;
+      } catch (error) {
+        diagnostics.rtt = 999;
+      }
+
+      // Получаем статистику WebRTC если доступна
+      if (this.pc && this.pc.getStats) {
+        const stats = await this.pc.getStats();
+        let packetsLost = 0, packetsReceived = 0;
+
+        stats.forEach(report => {
+          if (report.type === 'inbound-rtp') {
+            packetsLost += report.packetsLost || 0;
+            packetsReceived += report.packetsReceived || 0;
+          }
+        });
+
+        if (packetsReceived > 0) {
+          diagnostics.packetLoss = (packetsLost / (packetsLost + packetsReceived)) * 100;
+        }
+      }
+
+      console.log('🔍 Network diagnostics:', diagnostics);
+      return diagnostics;
+    } catch (error) {
+      console.error('Diagnostics error:', error);
+      return diagnostics;
+    }
+  }
+
+  // Адаптивная оптимизация качества на основе условий сети
+  async adaptQualityToNetwork() {
+    if (!this.pc) return;
+
+    const diagnostics = await this.performNetworkDiagnostics();
+    
+    // Определяем оптимальные настройки качества
+    let newQuality = 'hd';
+    let shouldForceTurn = false;
+
+    if (diagnostics.rtt > 300 || diagnostics.packetLoss > 10) {
+      newQuality = 'minimal';
+      shouldForceTurn = true;
+      this.showToast('warning', '⚠️ Плохое качество сети, снижаем настройки');
+    } else if (diagnostics.rtt > 150 || diagnostics.packetLoss > 5) {
+      newQuality = 'mobile';
+      shouldForceTurn = true;
+    } else if (diagnostics.connectionSpeed > 50 && diagnostics.rtt < 50) {
+      newQuality = 'ultra';
+    } else if (diagnostics.networkType === 'mobile') {
+      newQuality = 'sd';
+      shouldForceTurn = true;
+    }
+
+    // Применяем изменения только если качество изменилось
+    if (newQuality !== this.settings.videoQuality) {
+      this.settings.videoQuality = newQuality;
+      this.optimizePeerConnection();
+      
+      // Отправляем данные на сервер для оптимизации
+      try {
+        const response = await fetch('/optimize-quality', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(diagnostics)
+        });
+        
+        if (response.ok) {
+          const optimizedSettings = await response.json();
+          console.log('✅ Server optimization applied:', optimizedSettings);
+        }
+      } catch (error) {
+        console.warn('Quality optimization request failed:', error);
+      }
+    }
+
+    // Пересоздаем соединение с TURN если нужно
+    if (shouldForceTurn && !this.turnForced) {
+      console.log('🔄 Switching to TURN due to poor connection quality');
+      await this.switchToTurnConnection();
+    }
+
+    return diagnostics;
+  }
+
+  // Принудительное переключение на TURN соединение
+  async switchToTurnConnection() {
+    if (!this.pc) return;
+
+    this.turnForced = true;
+    this.showToast('info', '🔄 Переключение на TURN сервер...');
+
+    // Обновляем конфигурацию для принудительного использования TURN
+    const currentConfig = this.pc.getConfiguration();
+    currentConfig.iceTransportPolicy = 'relay';
+    
+    try {
+      // Пересоздаем peer connection с TURN-only политикой
+      const oldPc = this.pc;
+      await this.createPeerConnection();
+      
+      // Копируем треки
+      if (this.localStream) {
+        this.localStream.getTracks().forEach(track => {
+          this.pc.addTrack(track, this.localStream);
+        });
+      }
+
+      // Инициируем новое соединение
+      if (this.role === 'caller') {
+        await this.makeCall();
+      }
+
+      // Закрываем старое соединение
+      if (oldPc) {
+        oldPc.close();
+      }
+
+      console.log('✅ Successfully switched to TURN connection');
+    } catch (error) {
+      console.error('TURN switch failed:', error);
+      this.showToast('error', 'Не удалось переключиться на TURN сервер');
+    }
+  }
+
+  // Автоматический мониторинг качества соединения
+  startQualityMonitoring() {
+    if (this.intervals.qualityMonitor) {
+      clearInterval(this.intervals.qualityMonitor);
+    }
+
+    this.intervals.qualityMonitor = setInterval(async () => {
+      if (this.pc && this.pc.connectionState === 'connected') {
+        try {
+          await this.adaptQualityToNetwork();
+          
+          // Дополнительные проверки для российских условий
+          if (this.isRussianUser && !this.turnConfirmed && this.connectionIssues > 3) {
+            console.log('🇷🇺 Multiple connection issues detected, forcing TURN');
+            await this.switchToTurnConnection();
+            this.connectionIssues = 0; // Сброс счетчика
+          }
+        } catch (error) {
+          console.error('Quality monitoring error:', error);
+          this.connectionIssues++;
+        }
+      }
+    }, 10000); // Проверка каждые 10 секунд
+  }
+
+  // Отслеживание успешного соединения через TURN
+  confirmTurnConnection(candidate) {
+    if (candidate && candidate.candidate && candidate.candidate.includes('relay')) {
+      this.turnConfirmed = true;
+      console.log('✅ TURN connection confirmed');
+      this.showToast('success', '✅ Стабильное соединение через TURN сервер');
+    }
+  }
+
+  // Расширенная обработка состояния соединения
+  handleConnectionStateChange(state) {
+    console.log(`🔌 Connection state: ${state}`);
+    
+    switch (state) {
+      case 'connected':
+        this.updateConnectionStatus('connected', 'Подключен');
+        this.connectionIssues = 0;
+        this.lastSuccessfulConnection = Date.now();
+        this.startQualityMonitoring();
+        break;
+        
+      case 'connecting':
+        this.updateConnectionStatus('connecting', 'Подключение...');
+        break;
+        
+      case 'disconnected':
+        this.updateConnectionStatus('error', 'Отключен');
+        this.connectionIssues++;
+        
+        // Для российских пользователей пытаемся переподключиться быстрее
+        if (this.isRussianUser && this.connectionIssues < this.maxReconnectAttempts) {
+          setTimeout(() => this.attemptReconnection(), 2000);
+        }
+        break;
+        
+      case 'failed':
+        this.updateConnectionStatus('error', 'Ошибка');
+        this.connectionIssues++;
+        
+        if (this.connectionIssues >= 3 && !this.turnForced) {
+          this.switchToTurnConnection();
+        }
+        break;
+        
+      case 'closed':
+        this.updateConnectionStatus('error', 'Закрыт');
+        if (this.intervals.qualityMonitor) {
+          clearInterval(this.intervals.qualityMonitor);
+        }
+        break;
+    }
+  }
+
+  // Попытка переподключения для нестабильных российских сетей
+  async attemptReconnection() {
+    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+      this.showToast('error', 'Превышено количество попыток переподключения');
+      return;
+    }
+
+    this.reconnectAttempts++;
+    console.log(`🔄 Reconnection attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts}`);
+    
+    try {
+      if (this.ws && this.ws.readyState !== WebSocket.OPEN) {
+        await this.connectWebSocket(this.currentRoom);
+      }
+      
+      if (this.pc && this.pc.connectionState === 'failed') {
+        await this.createPeerConnection();
+        if (this.role === 'caller') {
+          await this.makeCall();
+        }
+      }
+    } catch (error) {
+      console.error('Reconnection failed:', error);
+      setTimeout(() => this.attemptReconnection(), 5000);
+    }
+  }
+
+  // Переподключение WebSocket соединения
+  async reconnectWebSocket() {
+    if (this.currentRoom) {
+      try {
+        await this.connectWebSocket(this.currentRoom);
+        this.showToast('success', '✅ WebSocket переподключен');
+      } catch (error) {
+        console.error('WebSocket reconnection failed:', error);
+        this.showToast('error', 'Ошибка переподключения');
+      }
+    }
   }
 }
 

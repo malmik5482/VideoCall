@@ -1,10 +1,12 @@
 {
-  "name": "videocall-docker",
-  "version": "3.0.0",
+  "name": "videocall-russian-optimized",
+  "version": "4.0.0",
   "private": true,
   "main": "server/index.js",
   "scripts": {
-    "start": "node server/index.js"
+    "start": "node server/index.js",
+    "dev": "node server/index.js",
+    "test": "echo \"No tests specified\" && exit 0"
   },
   "dependencies": {
     "cors": "^2.8.5",
@@ -13,5 +15,8 @@
   },
   "engines": {
     "node": ">=18"
-  }
+  },
+  "description": "WebRTC video calling app optimized for Russian networks with advanced TURN/STUN configuration",
+  "keywords": ["webrtc", "video", "calling", "russia", "turn", "stun", "p2p"],
+  "author": "Russian WebRTC Team"
 }

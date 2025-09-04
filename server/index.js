@@ -1,8 +1,5 @@
-require('dotenv').config();
 const path = require('path');
 const express = require('express');
-const compression = require('compression');
-const helmet = require('helmet');
 const cors = require('cors');
 const { WebSocketServer } = require('ws');
 
@@ -10,25 +7,8 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const NODE_ENV = process.env.NODE_ENV || 'development';
 
-// Enhanced security headers
+// Basic security
 app.disable('x-powered-by');
-app.use(helmet({ 
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
-      fontSrc: ["'self'", "https://fonts.gstatic.com"],
-      scriptSrc: ["'self'", "'unsafe-inline'"],
-      imgSrc: ["'self'", "data:", "blob:"],
-      mediaSrc: ["'self'", "blob:"],
-      connectSrc: ["'self'", "wss:", "ws:"],
-      workerSrc: ["'self'", "blob:"]
-    }
-  },
-  crossOriginEmbedderPolicy: false
-}));
-
-app.use(compression());
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 
@@ -36,35 +16,42 @@ app.use(express.json({ limit: '10mb' }));
 const clientDir = path.join(__dirname, '..', 'client');
 app.use(express.static(clientDir, { extensions: ['html'] }));
 
-// ---- Enhanced ICE Configuration for Russia with your TURN server ----
+// ---- Enhanced ICE Configuration for Russia with aggressive optimization ----
 function getICEConfig() {
-  // Специально оптимизированные серверы для России
+  // Оптимизированная конфигурация для российских сетей
   let iceServers = [
-    // Ваш собственный TURN сервер - приоритет #1 для российских пользователей
+    // Ваш TURN сервер - максимальный приоритет с множественными точками входа
     {
       urls: [
         'turn:94.198.218.189:3478?transport=udp',
-        'turn:94.198.218.189:3478?transport=tcp'
+        'turn:94.198.218.189:3478?transport=tcp',
+        'turns:94.198.218.189:5349?transport=tcp' // Если доступен TLS
       ],
       username: 'webrtc',
       credential: 'pRr45XBJgdff9Z2Q4EdTLwOUyqudQjtN',
       credentialType: 'password'
     },
     
-    // Российские STUN серверы для лучшей работы в РФ
-    { urls: 'stun:stun.voipbuster.com:3478' },
-    { urls: 'stun:stun.sipnet.net:3478' },
+    // Российские STUN серверы - геоблизость критична для минимизации latency
     { urls: 'stun:stun.sipnet.ru:3478' },
     { urls: 'stun:stun.comtube.ru:3478' },
+    { urls: 'stun:stun.sipnet.net:3478' },
+    { urls: 'stun:stun.voipbuster.com:3478' },
+    { urls: 'stun:stun.voipcheap.com:3478' },
     
-    // Дополнительные международные STUN как fallback
+    // Европейские STUN серверы для лучшей работы с VPN
+    { urls: 'stun:stun.freecall.com:3478' },
+    { urls: 'stun:stun.voipstunt.com:3478' },
     { urls: 'stun:stun.stunprotocol.org:3478' },
-    { urls: 'stun:stun.voipgate.com:3478' },
-    { urls: 'stun:stun.ekiga.net:3478' },
     
-    // Google STUN как последний резерв
+    // Дополнительные альтернативные STUN серверы
+    { urls: 'stun:stun.ekiga.net:3478' },
+    { urls: 'stun:stun.ideasip.com:3478' },
+    
+    // Google STUN как резерв (может блокироваться VPN/провайдерами)
     { urls: 'stun:stun.l.google.com:19302' },
-    { urls: 'stun:stun1.l.google.com:19302' }
+    { urls: 'stun:stun1.l.google.com:19302' },
+    { urls: 'stun:stun2.l.google.com:19302' }
   ];
   
   try {
@@ -115,10 +102,18 @@ function getICEConfig() {
   
   return { 
     iceServers,
-    iceCandidatePoolSize: 20, // Увеличено для лучшего прохождения NAT в России
+    iceCandidatePoolSize: 30, // Максимально увеличено для сложных российских NAT
     rtcpMuxPolicy: 'require',
     bundlePolicy: 'max-bundle',
-    iceTransportPolicy: 'all' // Разрешаем TCP и UDP для российских сетей
+    iceTransportPolicy: 'all', // Разрешаем все транспорты для максимальной совместимости
+    // Дополнительные настройки для российских сетей
+    russianOptimization: {
+      turnForced: false, // Не принуждаем TURN сразу, пробуем P2P сначала
+      adaptiveQuality: true,
+      connectionTimeout: 15000, // Увеличенный таймаут для медленных сетей
+      reconnectAttempts: 5,
+      iceGatheringTimeout: 10000
+    }
   };
 }
 
@@ -316,6 +311,93 @@ app.get('/turn-test', (req, res) => {
       'TURN сервер должен обеспечить соединение через NAT'
     ],
     russianNetworkOptimization: true
+  });
+});
+
+// Новый API для динамической диагностики соединения
+app.get('/connection-diagnostics', (req, res) => {
+  const userAgent = req.headers['user-agent'] || '';
+  const clientIP = req.ip || req.connection.remoteAddress || '';
+  
+  // Определяем тип устройства и предполагаемый тип соединения
+  const isMobile = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(userAgent);
+  const isDesktop = !isMobile;
+  
+  // Рекомендации на основе User-Agent и IP
+  let recommendedConfig = {
+    videoQuality: 'hd',
+    audioQuality: 'premium',
+    turnPriority: 'medium',
+    iceTransportPolicy: 'all'
+  };
+  
+  if (isMobile) {
+    recommendedConfig = {
+      videoQuality: 'sd',
+      audioQuality: 'standard', 
+      turnPriority: 'high', // Мобильные сети чаще нуждаются в TURN
+      iceTransportPolicy: 'all'
+    };
+  }
+  
+  res.json({
+    clientInfo: {
+      ip: clientIP,
+      isMobile: isMobile,
+      isDesktop: isDesktop,
+      userAgent: userAgent.substring(0, 100)
+    },
+    recommendedConfig,
+    russianOptimizations: {
+      stunServers: 12, // Количество российских STUN серверов
+      turnServerAvailable: true,
+      adaptiveQuality: true,
+      connectionMonitoring: true
+    },
+    troubleshooting: [
+      'Для мобильного интернета: рекомендуется WiFi',
+      'При проблемах с VPN: попробуйте отключить и переподключиться',
+      'При низком качестве: проверьте скорость интернета',
+      'При разрывах соединения: TURN сервер обеспечит стабильность'
+    ]
+  });
+});
+
+// API для получения оптимальных настроек качества в реальном времени
+app.post('/optimize-quality', express.json(), (req, res) => {
+  const { connectionSpeed, packetLoss, rtt, networkType } = req.body;
+  
+  let qualityProfile = {
+    video: { width: 1280, height: 720, frameRate: 30, bitrate: 2500000 },
+    audio: { bitrate: 128000, sampleRate: 44100 }
+  };
+  
+  // Адаптируем качество на основе показателей сети
+  if (packetLoss > 5 || rtt > 200) {
+    // Плохая сеть - снижаем качество
+    qualityProfile = {
+      video: { width: 640, height: 480, frameRate: 20, bitrate: 800000 },
+      audio: { bitrate: 64000, sampleRate: 22050 }
+    };
+  } else if (connectionSpeed > 50 && packetLoss < 1 && rtt < 50) {
+    // Отличная сеть - максимальное качество
+    qualityProfile = {
+      video: { width: 1920, height: 1080, frameRate: 30, bitrate: 8000000 },
+      audio: { bitrate: 256000, sampleRate: 48000 }
+    };
+  } else if (networkType === 'mobile') {
+    // Мобильная сеть - консервативные настройки
+    qualityProfile = {
+      video: { width: 960, height: 540, frameRate: 24, bitrate: 1500000 },
+      audio: { bitrate: 96000, sampleRate: 44100 }
+    };
+  }
+  
+  res.json({
+    success: true,
+    recommendedProfile: qualityProfile,
+    explanation: `Настройки оптимизированы для: скорость ${connectionSpeed}Mbps, потери ${packetLoss}%, задержка ${rtt}ms`,
+    russianOptimization: true
   });
 });
 
