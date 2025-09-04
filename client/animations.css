@@ -1,0 +1,685 @@
+/* ====== КОСМИЧЕСКИЕ 3D АНИМАЦИИ ====== */
+
+/* Плавные переходы между экранами */
+.screen-transition {
+    transition: all 0.6s cubic-bezier(0.4, 0.0, 0.2, 1);
+}
+
+.screen-enter {
+    opacity: 0;
+    transform: translateY(50px) scale(0.95);
+}
+
+.screen-enter-active {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+}
+
+.screen-exit {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+}
+
+.screen-exit-active {
+    opacity: 0;
+    transform: translateY(-50px) scale(1.05);
+}
+
+/* ====== КОСМИЧЕСКИЙ ФРАКТАЛЬНЫЙ ФОН ====== */
+.cosmic-fractal {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: 
+        radial-gradient(circle at 25% 25%, rgba(99, 102, 241, 0.1) 0%, transparent 50%),
+        radial-gradient(circle at 75% 25%, rgba(59, 130, 246, 0.1) 0%, transparent 50%),
+        radial-gradient(circle at 25% 75%, rgba(236, 72, 153, 0.1) 0%, transparent 50%),
+        radial-gradient(circle at 75% 75%, rgba(6, 182, 212, 0.1) 0%, transparent 50%);
+    animation: fractal-shift 20s ease-in-out infinite;
+    pointer-events: none;
+}
+
+@keyframes fractal-shift {
+    0%, 100% { 
+        transform: rotate(0deg) scale(1);
+        filter: hue-rotate(0deg);
+    }
+    25% { 
+        transform: rotate(90deg) scale(1.1);
+        filter: hue-rotate(90deg);
+    }
+    50% { 
+        transform: rotate(180deg) scale(0.9);
+        filter: hue-rotate(180deg);
+    }
+    75% { 
+        transform: rotate(270deg) scale(1.1);
+        filter: hue-rotate(270deg);
+    }
+}
+
+/* ====== ГОЛОГРАФИЧЕСКИЕ ЭФФЕКТЫ ====== */
+.hologram-text {
+    background: linear-gradient(
+        45deg,
+        transparent 30%, 
+        rgba(255, 255, 255, 0.1) 50%,
+        transparent 70%
+    );
+    background-size: 200% 200%;
+    animation: hologram-scan 3s linear infinite;
+    position: relative;
+}
+
+@keyframes hologram-scan {
+    0% { background-position: -200% -200%; }
+    100% { background-position: 200% 200%; }
+}
+
+.hologram-text::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(
+        90deg,
+        transparent 0%,
+        rgba(99, 102, 241, 0.1) 25%,
+        rgba(59, 130, 246, 0.1) 50%,
+        rgba(6, 182, 212, 0.1) 75%,
+        transparent 100%
+    );
+    animation: hologram-flicker 2s ease-in-out infinite alternate;
+}
+
+@keyframes hologram-flicker {
+    0%, 100% { opacity: 0.8; }
+    50% { opacity: 0.3; }
+}
+
+/* ====== МОРФИНГ КНОПОК ====== */
+.morph-button {
+    position: relative;
+    overflow: hidden;
+    transform-style: preserve-3d;
+    transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.morph-button::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(
+        135deg,
+        rgba(99, 102, 241, 0.8) 0%,
+        rgba(59, 130, 246, 0.6) 50%,
+        rgba(6, 182, 212, 0.8) 100%
+    );
+    border-radius: inherit;
+    opacity: 0;
+    transform: translateZ(-1px) scale(0.8);
+    transition: all 0.4s ease;
+}
+
+.morph-button:hover::before {
+    opacity: 1;
+    transform: translateZ(-1px) scale(1.1);
+}
+
+.morph-button:hover {
+    transform: translateY(-8px) rotateX(15deg) rotateY(5deg);
+    box-shadow: 
+        0 20px 40px rgba(99, 102, 241, 0.3),
+        0 0 0 1px rgba(99, 102, 241, 0.1),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.morph-button:active {
+    transform: translateY(-2px) rotateX(5deg) rotateY(2deg);
+}
+
+/* ====== ЖИДКИЕ АНИМАЦИИ ====== */
+.liquid-shape {
+    position: relative;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--cosmic-purple), var(--cosmic-blue));
+    animation: liquid-morph 8s ease-in-out infinite;
+}
+
+@keyframes liquid-morph {
+    0%, 100% {
+        border-radius: 50% 40% 60% 30% / 40% 50% 60% 50%;
+        transform: rotate(0deg);
+    }
+    25% {
+        border-radius: 30% 60% 40% 70% / 60% 30% 70% 40%;
+        transform: rotate(90deg);
+    }
+    50% {
+        border-radius: 70% 30% 50% 60% / 30% 60% 40% 70%;
+        transform: rotate(180deg);
+    }
+    75% {
+        border-radius: 40% 70% 30% 50% / 70% 40% 50% 60%;
+        transform: rotate(270deg);
+    }
+}
+
+/* ====== ЧАСТИЦЫ ЭНЕРГИИ ====== */
+.energy-particles {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+}
+
+.energy-particle {
+    position: absolute;
+    width: 4px;
+    height: 4px;
+    background: radial-gradient(circle, rgba(99, 102, 241, 0.8) 0%, transparent 70%);
+    border-radius: 50%;
+    animation: particle-flow 4s linear infinite;
+}
+
+.energy-particle:nth-child(odd) {
+    background: radial-gradient(circle, rgba(6, 182, 212, 0.8) 0%, transparent 70%);
+}
+
+@keyframes particle-flow {
+    0% {
+        opacity: 0;
+        transform: translateY(100vh) translateX(-50px) scale(0);
+    }
+    10% {
+        opacity: 1;
+        transform: translateY(90vh) translateX(-30px) scale(1);
+    }
+    90% {
+        opacity: 1;
+        transform: translateY(10vh) translateX(30px) scale(1);
+    }
+    100% {
+        opacity: 0;
+        transform: translateY(0vh) translateX(50px) scale(0);
+    }
+}
+
+/* Генерируем 20 частиц с разными задержками */
+.energy-particle:nth-child(1) { left: 5%; animation-delay: -0.2s; }
+.energy-particle:nth-child(2) { left: 15%; animation-delay: -0.4s; }
+.energy-particle:nth-child(3) { left: 25%; animation-delay: -0.6s; }
+.energy-particle:nth-child(4) { left: 35%; animation-delay: -0.8s; }
+.energy-particle:nth-child(5) { left: 45%; animation-delay: -1s; }
+.energy-particle:nth-child(6) { left: 55%; animation-delay: -1.2s; }
+.energy-particle:nth-child(7) { left: 65%; animation-delay: -1.4s; }
+.energy-particle:nth-child(8) { left: 75%; animation-delay: -1.6s; }
+.energy-particle:nth-child(9) { left: 85%; animation-delay: -1.8s; }
+.energy-particle:nth-child(10) { left: 95%; animation-delay: -2s; }
+.energy-particle:nth-child(11) { left: 10%; animation-delay: -2.2s; }
+.energy-particle:nth-child(12) { left: 20%; animation-delay: -2.4s; }
+.energy-particle:nth-child(13) { left: 30%; animation-delay: -2.6s; }
+.energy-particle:nth-child(14) { left: 40%; animation-delay: -2.8s; }
+.energy-particle:nth-child(15) { left: 50%; animation-delay: -3s; }
+.energy-particle:nth-child(16) { left: 60%; animation-delay: -3.2s; }
+.energy-particle:nth-child(17) { left: 70%; animation-delay: -3.4s; }
+.energy-particle:nth-child(18) { left: 80%; animation-delay: -3.6s; }
+.energy-particle:nth-child(19) { left: 90%; animation-delay: -3.8s; }
+.energy-particle:nth-child(20) { left: 12%; animation-delay: -4s; }
+
+/* ====== КРИСТАЛЬНЫЕ ЭФФЕКТЫ ====== */
+.crystal-surface {
+    position: relative;
+    background: linear-gradient(135deg, 
+        rgba(99, 102, 241, 0.1) 0%,
+        rgba(59, 130, 246, 0.05) 25%,
+        rgba(6, 182, 212, 0.1) 50%,
+        rgba(236, 72, 153, 0.05) 75%,
+        rgba(99, 102, 241, 0.1) 100%
+    );
+    backdrop-filter: blur(10px);
+}
+
+.crystal-surface::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(
+        45deg,
+        transparent 0%,
+        rgba(255, 255, 255, 0.1) 45%,
+        rgba(255, 255, 255, 0.2) 50%,
+        rgba(255, 255, 255, 0.1) 55%,
+        transparent 100%
+    );
+    transform: translateX(-100%) skewX(-25deg);
+    animation: crystal-shine 3s ease-in-out infinite;
+}
+
+@keyframes crystal-shine {
+    0% { transform: translateX(-100%) skewX(-25deg); }
+    50% { transform: translateX(100%) skewX(-25deg); }
+    100% { transform: translateX(-100%) skewX(-25deg); }
+}
+
+/* ====== МАГНИТНЫЕ ПОЛЯ ====== */
+.magnetic-field {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    background: 
+        radial-gradient(ellipse 200% 100% at 50% 0%, transparent 24%, rgba(99, 102, 241, 0.1) 25%, rgba(99, 102, 241, 0.1) 26%, transparent 27%, transparent 74%, rgba(59, 130, 246, 0.1) 75%, rgba(59, 130, 246, 0.1) 76%, transparent 77%),
+        radial-gradient(ellipse 200% 100% at 50% 100%, transparent 24%, rgba(6, 182, 212, 0.1) 25%, rgba(6, 182, 212, 0.1) 26%, transparent 27%, transparent 74%, rgba(236, 72, 153, 0.1) 75%, rgba(236, 72, 153, 0.1) 76%, transparent 77%);
+    animation: magnetic-pulse 6s ease-in-out infinite;
+    pointer-events: none;
+}
+
+@keyframes magnetic-pulse {
+    0%, 100% { 
+        transform: scale(1) rotate(0deg);
+        opacity: 0.6;
+    }
+    50% { 
+        transform: scale(1.1) rotate(180deg);
+        opacity: 0.8;
+    }
+}
+
+/* ====== КВАНТОВЫЕ ПЕРЕХОДЫ ====== */
+.quantum-transition {
+    transition: all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+
+.quantum-hover:hover {
+    transform: translateY(-5px) scale(1.02);
+    filter: drop-shadow(0 10px 20px rgba(99, 102, 241, 0.3));
+}
+
+.quantum-click:active {
+    transform: scale(0.95);
+    filter: brightness(1.2);
+}
+
+/* ====== ВИХРЕВЫЕ ЭФФЕКТЫ ====== */
+.vortex-spinner {
+    position: relative;
+    display: inline-block;
+}
+
+.vortex-spinner::before,
+.vortex-spinner::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 100%;
+    height: 100%;
+    border: 2px solid transparent;
+    border-top: 2px solid var(--cosmic-purple);
+    border-radius: 50%;
+    animation: vortex-spin 1s linear infinite;
+}
+
+.vortex-spinner::after {
+    width: 80%;
+    height: 80%;
+    border-top-color: var(--cosmic-cyan);
+    animation: vortex-spin 0.8s linear infinite reverse;
+}
+
+@keyframes vortex-spin {
+    0% { transform: translate(-50%, -50%) rotate(0deg); }
+    100% { transform: translate(-50%, -50%) rotate(360deg); }
+}
+
+/* ====== СВЕТОВЫЕ МЕЧИ ====== */
+.lightsaber-glow {
+    position: relative;
+}
+
+.lightsaber-glow::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(90deg, transparent, var(--cosmic-purple), transparent);
+    border-radius: inherit;
+    filter: blur(4px);
+    animation: lightsaber-hum 2s ease-in-out infinite alternate;
+}
+
+@keyframes lightsaber-hum {
+    0% { opacity: 0.6; transform: scaleX(0.8); }
+    100% { opacity: 1; transform: scaleX(1.2); }
+}
+
+/* ====== ТЕЛЕПОРТАЦИЯ ====== */
+.teleport-in {
+    animation: teleport-materialize 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.teleport-out {
+    animation: teleport-dematerialize 0.6s cubic-bezier(0.55, 0.055, 0.675, 0.19);
+}
+
+@keyframes teleport-materialize {
+    0% {
+        opacity: 0;
+        transform: scale(0.3) rotateY(180deg);
+        filter: blur(20px) hue-rotate(90deg);
+    }
+    50% {
+        opacity: 0.7;
+        transform: scale(1.1) rotateY(90deg);
+        filter: blur(5px) hue-rotate(45deg);
+    }
+    100% {
+        opacity: 1;
+        transform: scale(1) rotateY(0deg);
+        filter: blur(0px) hue-rotate(0deg);
+    }
+}
+
+@keyframes teleport-dematerialize {
+    0% {
+        opacity: 1;
+        transform: scale(1) rotateY(0deg);
+        filter: blur(0px) hue-rotate(0deg);
+    }
+    50% {
+        opacity: 0.3;
+        transform: scale(1.2) rotateY(-90deg);
+        filter: blur(10px) hue-rotate(-45deg);
+    }
+    100% {
+        opacity: 0;
+        transform: scale(0.1) rotateY(-180deg);
+        filter: blur(30px) hue-rotate(-90deg);
+    }
+}
+
+/* ====== ГРАВИТАЦИОННЫЕ ВОЛНЫ ====== */
+.gravity-wave {
+    position: relative;
+    overflow: hidden;
+}
+
+.gravity-wave::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, 
+        transparent 0%,
+        rgba(99, 102, 241, 0.1) 25%,
+        rgba(99, 102, 241, 0.2) 50%,
+        rgba(99, 102, 241, 0.1) 75%,
+        transparent 100%
+    );
+    animation: gravity-ripple 2s ease-in-out infinite;
+    transform: skewX(-20deg);
+}
+
+@keyframes gravity-ripple {
+    0% { left: -100%; }
+    100% { left: 100%; }
+}
+
+/* ====== ПЛАЗМЕННЫЕ ЭФФЕКТЫ ====== */
+.plasma-border {
+    position: relative;
+    border: 2px solid transparent;
+    background: linear-gradient(var(--bg-secondary), var(--bg-secondary)) padding-box,
+                linear-gradient(45deg, var(--cosmic-purple), var(--cosmic-cyan), var(--cosmic-pink), var(--cosmic-purple)) border-box;
+}
+
+.plasma-border::before {
+    content: '';
+    position: absolute;
+    top: -2px;
+    left: -2px;
+    right: -2px;
+    bottom: -2px;
+    background: linear-gradient(45deg, var(--cosmic-purple), var(--cosmic-cyan), var(--cosmic-pink), var(--cosmic-purple));
+    border-radius: inherit;
+    z-index: -1;
+    animation: plasma-rotate 3s linear infinite;
+}
+
+@keyframes plasma-rotate {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* ====== АУРЫ ПЕРСОНАЖЕЙ ====== */
+.character-aura {
+    position: relative;
+}
+
+.character-aura::before {
+    content: '';
+    position: absolute;
+    top: -10px;
+    left: -10px;
+    right: -10px;
+    bottom: -10px;
+    background: radial-gradient(circle, 
+        transparent 60%,
+        rgba(99, 102, 241, 0.1) 70%,
+        rgba(99, 102, 241, 0.2) 80%,
+        rgba(99, 102, 241, 0.1) 90%,
+        transparent 100%
+    );
+    border-radius: 50%;
+    animation: aura-pulse 3s ease-in-out infinite;
+    pointer-events: none;
+}
+
+@keyframes aura-pulse {
+    0%, 100% { 
+        transform: scale(0.8); 
+        opacity: 0.4; 
+    }
+    50% { 
+        transform: scale(1.2); 
+        opacity: 0.8; 
+    }
+}
+
+/* ====== МЕЖПРОСТРАНСТВЕННЫЕ ПОРТАЛЫ ====== */
+.portal-effect {
+    position: relative;
+    border-radius: 50%;
+    background: radial-gradient(circle,
+        rgba(99, 102, 241, 0.8) 0%,
+        rgba(59, 130, 246, 0.6) 30%,
+        rgba(6, 182, 212, 0.4) 60%,
+        transparent 80%
+    );
+    animation: portal-swirl 4s linear infinite;
+}
+
+@keyframes portal-swirl {
+    0% { 
+        transform: rotate(0deg) scale(1);
+        filter: hue-rotate(0deg);
+    }
+    100% { 
+        transform: rotate(360deg) scale(1.1);
+        filter: hue-rotate(360deg);
+    }
+}
+
+.portal-effect::before {
+    content: '';
+    position: absolute;
+    top: 10%;
+    left: 10%;
+    width: 80%;
+    height: 80%;
+    border-radius: 50%;
+    background: radial-gradient(circle,
+        transparent 0%,
+        rgba(255, 255, 255, 0.2) 40%,
+        transparent 70%
+    );
+    animation: portal-inner-spin 2s linear infinite reverse;
+}
+
+@keyframes portal-inner-spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(-360deg); }
+}
+
+/* ====== НЕЙРОННЫЕ СЕТИ ====== */
+.neural-network {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    background-image: 
+        linear-gradient(90deg, rgba(99, 102, 241, 0.1) 1px, transparent 1px),
+        linear-gradient(rgba(59, 130, 246, 0.1) 1px, transparent 1px);
+    background-size: 50px 50px;
+    animation: neural-pulse 4s ease-in-out infinite;
+    pointer-events: none;
+}
+
+@keyframes neural-pulse {
+    0%, 100% { 
+        opacity: 0.3;
+        transform: scale(1);
+    }
+    50% { 
+        opacity: 0.7;
+        transform: scale(1.05);
+    }
+}
+
+/* ====== ВРЕМЕННЫЕ ИСКАЖЕНИЯ ====== */
+.time-distortion {
+    position: relative;
+}
+
+.time-distortion::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(
+        45deg,
+        transparent 0%,
+        rgba(99, 102, 241, 0.1) 25%,
+        transparent 50%,
+        rgba(6, 182, 212, 0.1) 75%,
+        transparent 100%
+    );
+    border-radius: inherit;
+    animation: time-warp 3s ease-in-out infinite;
+    pointer-events: none;
+}
+
+@keyframes time-warp {
+    0%, 100% { 
+        transform: perspective(1000px) rotateX(0deg) rotateY(0deg);
+        filter: blur(0px);
+    }
+    25% { 
+        transform: perspective(1000px) rotateX(5deg) rotateY(-5deg);
+        filter: blur(1px);
+    }
+    50% { 
+        transform: perspective(1000px) rotateX(-5deg) rotateY(5deg);
+        filter: blur(2px);
+    }
+    75% { 
+        transform: perspective(1000px) rotateX(3deg) rotateY(-3deg);
+        filter: blur(1px);
+    }
+}
+
+/* ====== ЭНЕРГЕТИЧЕСКИЕ ЩИТЫ ====== */
+.energy-shield {
+    position: relative;
+}
+
+.energy-shield::after {
+    content: '';
+    position: absolute;
+    top: -3px;
+    left: -3px;
+    right: -3px;
+    bottom: -3px;
+    background: linear-gradient(45deg,
+        rgba(99, 102, 241, 0.3),
+        rgba(59, 130, 246, 0.3),
+        rgba(6, 182, 212, 0.3),
+        rgba(99, 102, 241, 0.3)
+    );
+    border-radius: inherit;
+    filter: blur(3px);
+    animation: shield-flicker 1.5s ease-in-out infinite alternate;
+    pointer-events: none;
+    z-index: -1;
+}
+
+@keyframes shield-flicker {
+    0% { 
+        opacity: 0.6;
+        transform: scale(0.95);
+    }
+    100% { 
+        opacity: 1;
+        transform: scale(1.05);
+    }
+}
+
+/* ====== ПРОИЗВОДИТЕЛЬНОСТЬ ====== */
+/* Отключаем сложные анимации на слабых устройствах */
+@media (prefers-reduced-motion: reduce) {
+    .energy-particles,
+    .magnetic-field,
+    .neural-network,
+    .cosmic-fractal {
+        animation: none;
+    }
+    
+    .particle-flow,
+    .fractal-shift,
+    .magnetic-pulse,
+    .neural-pulse {
+        animation: none;
+    }
+}
+
+/* Упрощаем анимации для мобильных */
+@media (max-width: 768px) {
+    .energy-particles {
+        display: none;
+    }
+    
+    .magnetic-field,
+    .neural-network {
+        opacity: 0.3;
+    }
+    
+    .portal-effect,
+    .vortex-spinner {
+        animation-duration: 2s;
+    }
+}

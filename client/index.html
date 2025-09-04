@@ -3,297 +3,327 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VideoCall - Защищенные видеозвонки</title>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { 
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 20px;
-        }
-        .container { 
-            max-width: 600px; 
-            width: 100%; 
-            text-align: center;
-            background: rgba(255,255,255,0.1);
-            backdrop-filter: blur(20px);
-            border-radius: 20px;
-            padding: 3rem;
-            border: 1px solid rgba(255,255,255,0.2);
-        }
-        h1 { 
-            font-size: 3rem; 
-            margin-bottom: 1rem;
-            text-shadow: 0 4px 8px rgba(0,0,0,0.3);
-        }
-        .subtitle {
-            font-size: 1.3rem;
-            opacity: 0.9;
-            margin-bottom: 3rem;
-            line-height: 1.6;
-        }
-        .status {
-            background: rgba(255,255,255,0.2);
-            border-radius: 12px;
-            padding: 1.5rem;
-            margin: 2rem 0;
-            font-size: 1.1rem;
-        }
-        .button {
-            background: linear-gradient(135deg, #ff6b6b, #ee5a24);
-            border: none;
-            color: white;
-            padding: 1.2rem 2.5rem;
-            font-size: 1.2rem;
-            font-weight: 600;
-            border-radius: 12px;
-            cursor: pointer;
-            margin: 1rem;
-            transition: all 0.3s ease;
-            text-decoration: none;
-            display: inline-block;
-            min-width: 250px;
-        }
-        .button:hover { 
-            transform: translateY(-3px);
-            box-shadow: 0 10px 25px rgba(0,0,0,0.3);
-        }
-        .button:disabled {
-            background: #6c757d;
-            cursor: not-allowed;
-            transform: none;
-        }
-        .button.success {
-            background: linear-gradient(135deg, #28a745, #20c997);
-        }
-        .button.call {
-            background: linear-gradient(135deg, #28a745, #20c997);
-            font-size: 1.3rem;
-            padding: 1.5rem 3rem;
-        }
-        .video-container {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 1rem;
-            margin: 2rem 0;
-            border-radius: 12px;
-            overflow: hidden;
-        }
-        video {
-            width: 100%;
-            height: 250px;
-            background: #000;
-            object-fit: cover;
-        }
-        .video-wrapper {
-            position: relative;
-            border-radius: 12px;
-            overflow: hidden;
-        }
-        .video-label {
-            position: absolute;
-            bottom: 15px;
-            left: 15px;
-            background: rgba(0,0,0,0.8);
-            padding: 8px 12px;
-            border-radius: 6px;
-            font-weight: 600;
-        }
-        .room-info {
-            background: rgba(255,255,255,0.15);
-            border-radius: 8px;
-            padding: 1rem;
-            margin: 1rem 0;
-            font-size: 0.9rem;
-        }
-        @media (max-width: 768px) {
-            .video-container { grid-template-columns: 1fr; }
-            h1 { font-size: 2.5rem; }
-            .button { width: 100%; margin: 0.5rem 0; min-width: auto; }
-            .container { padding: 2rem 1.5rem; }
-        }
-    </style>
+    <title>🚀 CosmosChat - Космический мессенджер</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="animations.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
-    <div class="container">
-        <h1>🛡️ VideoCall</h1>
-        <div class="subtitle">
-            Защищенные видеозвонки с обходом блокировок<br>
-            <strong>Специально для российских мобильных сетей</strong>
-        </div>
+    <!-- Космический фон с частицами -->
+    <div class="cosmic-background">
+        <canvas id="starsCanvas"></canvas>
+        <div class="particles"></div>
+    </div>
 
-        <div class="status" id="status">
-            🔄 Инициализация защищенного соединения...
-        </div>
-
-        <button id="connectBtn" class="button">
-            🛡️ Активировать защиту VLESS
-        </button>
-
-        <button id="callBtn" class="button call" disabled>
-            📞 Начать защищенный звонок
-        </button>
-
-        <button id="hangupBtn" class="button" style="display: none;">
-            📞 Завершить звонок
-        </button>
-
-        <div class="room-info" id="roomInfo" style="display: none;">
-            Код комнаты: <strong id="roomCode"></strong><br>
-            <small>Поделитесь этим кодом с собеседником</small>
-        </div>
-
-        <div class="video-container" style="display: none;" id="videoContainer">
-            <div class="video-wrapper">
-                <video id="localVideo" autoplay muted playsinline></video>
-                <div class="video-label">Вы (через VLESS)</div>
+    <!-- Экран загрузки -->
+    <div class="loading-screen" id="loadingScreen">
+        <div class="logo-container">
+            <div class="cosmic-logo">
+                <div class="planet"></div>
+                <div class="orbit">
+                    <div class="satellite"></div>
+                </div>
+                <div class="stars-around">
+                    <div class="star"></div>
+                    <div class="star"></div>
+                    <div class="star"></div>
+                    <div class="star"></div>
+                    <div class="star"></div>
+                </div>
             </div>
-            <div class="video-wrapper">
-                <video id="remoteVideo" autoplay playsinline></video>
-                <div class="video-label">Собеседник</div>
-            </div>
+            <h1 class="app-title glow">CosmosChat</h1>
+            <p class="tagline">Связь без границ во вселенной общения</p>
         </div>
-
-        <div style="margin-top: 2rem; font-size: 0.9rem; opacity: 0.8;">
-            🔒 Весь трафик зашифрован и замаскирован<br>
-            📱 Поддержка: МТС • Билайн • МегаФон • Теле2
+        <div class="loading-bar">
+            <div class="loading-progress"></div>
         </div>
     </div>
 
-    <script src="vless-protocol.js"></script>
-    <script>
-        // Global variables
-        let webrtcVless = null;
-        let roomId = 'room-' + Math.random().toString(36).substr(2, 9);
+    <!-- Экран авторизации -->
+    <div class="auth-screen hidden" id="authScreen">
+        <div class="auth-container">
+            <div class="auth-header">
+                <div class="cosmic-logo small">
+                    <div class="planet small"></div>
+                    <div class="orbit">
+                        <div class="satellite"></div>
+                    </div>
+                </div>
+                <h1 class="glow">Добро пожаловать!</h1>
+                <p>Войдите в космос безграничного общения</p>
+            </div>
 
-        // DOM elements
-        const connectBtn = document.getElementById('connectBtn');
-        const callBtn = document.getElementById('callBtn');
-        const hangupBtn = document.getElementById('hangupBtn');
-        const status = document.getElementById('status');
-        const roomInfo = document.getElementById('roomInfo');
-        const roomCode = document.getElementById('roomCode');
-        const videoContainer = document.getElementById('videoContainer');
-        const localVideo = document.getElementById('localVideo');
-        const remoteVideo = document.getElementById('remoteVideo');
-
-        // Update status
-        function updateStatus(message, type = 'info') {
-            status.textContent = message;
-            status.style.background = type === 'success' ? 'rgba(40, 167, 69, 0.3)' :
-                                   type === 'error' ? 'rgba(220, 53, 69, 0.3)' :
-                                   'rgba(255, 255, 255, 0.2)';
-            console.log(`[${type.toUpperCase()}] ${message}`);
-        }
-
-        // Connect VLESS
-        async function connectVLESS() {
-            try {
-                updateStatus('🔄 Подключение к VLESS серверу...', 'info');
-                connectBtn.disabled = true;
-                connectBtn.textContent = '🔄 Подключение...';
-
-                webrtcVless = new WebRTCOverVLESS();
+            <!-- Форма регистрации -->
+            <div class="auth-form" id="registrationForm">
+                <div class="form-group floating-label">
+                    <input type="text" id="userName" class="cosmic-input" required>
+                    <label for="userName">👤 Ваше имя</label>
+                    <div class="input-glow"></div>
+                </div>
                 
-                // Handle connection state changes
-                webrtcVless.onConnectionChange = (state) => {
-                    console.log('Connection state:', state);
+                <div class="form-group floating-label">
+                    <input type="tel" id="userPhone" class="cosmic-input" required>
+                    <label for="userPhone">📱 Номер телефона</label>
+                    <div class="input-glow"></div>
+                </div>
+
+                <button class="cosmic-button primary pulse" onclick="registerUser()">
+                    <span class="button-bg"></span>
+                    <span class="button-text">🚀 Запустить в космос!</span>
+                    <div class="button-particles"></div>
+                </button>
+
+                <div class="auth-footer">
+                    <p>Уже есть аккаунт? <a href="#" onclick="showLoginForm()" class="glow-link">Войти</a></p>
+                </div>
+            </div>
+
+            <!-- Форма входа -->
+            <div class="auth-form hidden" id="loginForm">
+                <div class="form-group floating-label">
+                    <input type="tel" id="loginPhone" class="cosmic-input" required>
+                    <label for="loginPhone">📱 Номер телефона</label>
+                    <div class="input-glow"></div>
+                </div>
+
+                <button class="cosmic-button primary pulse" onclick="loginUser()">
+                    <span class="button-bg"></span>
+                    <span class="button-text">🌟 Войти в космос</span>
+                    <div class="button-particles"></div>
+                </button>
+
+                <div class="auth-footer">
+                    <p>Нет аккаунта? <a href="#" onclick="showRegistrationForm()" class="glow-link">Создать</a></p>
+                </div>
+            </div>
+
+            <!-- Разрешения -->
+            <div class="permissions-screen hidden" id="permissionsScreen">
+                <div class="permissions-header">
+                    <div class="permission-icon">🎥</div>
+                    <h2 class="glow">Космические разрешения</h2>
+                    <p>Для полноценного общения нужны разрешения:</p>
+                </div>
+
+                <div class="permissions-list">
+                    <div class="permission-item">
+                        <div class="permission-icon-small">📹</div>
+                        <div class="permission-text">
+                            <h4>Камера</h4>
+                            <p>Для видеозвонков и селфи</p>
+                        </div>
+                        <div class="permission-status" id="cameraStatus">⏳</div>
+                    </div>
                     
-                    if (state === 'connected') {
-                        updateStatus('✅ VLESS защита активирована! Можно начинать звонок.', 'success');
-                        connectBtn.textContent = '🛡️ Защита активна';
-                        connectBtn.classList.add('success');
-                        callBtn.disabled = false;
-                    } else if (state === 'error' || state === 'disconnected') {
-                        updateStatus('❌ Ошибка подключения к VLESS серверу', 'error');
-                        resetUI();
-                    }
-                };
+                    <div class="permission-item">
+                        <div class="permission-icon-small">🎤</div>
+                        <div class="permission-text">
+                            <h4>Микрофон</h4>
+                            <p>Для голосовых сообщений и звонков</p>
+                        </div>
+                        <div class="permission-status" id="micStatus">⏳</div>
+                    </div>
+                </div>
 
-                // Handle remote stream
-                webrtcVless.onRemoteStream = (stream) => {
-                    remoteVideo.srcObject = stream;
-                    updateStatus('🎥 Видеозвонок подключен через VLESS!', 'success');
-                };
+                <button class="cosmic-button primary pulse" onclick="requestPermissions()">
+                    <span class="button-bg"></span>
+                    <span class="button-text">✨ Предоставить разрешения</span>
+                    <div class="button-particles"></div>
+                </button>
+            </div>
+        </div>
+    </div>
 
-                await webrtcVless.initVLESS();
-
-            } catch (error) {
-                updateStatus('❌ Ошибка VLESS: ' + error.message, 'error');
-                resetUI();
-            }
-        }
-
-        // Start call
-        async function startCall() {
-            try {
-                if (!webrtcVless || !webrtcVless.getStatus().vlessConnected) {
-                    updateStatus('❌ Сначала активируйте VLESS защиту!', 'error');
-                    return;
-                }
-
-                updateStatus('📞 Начинаем защищенный звонок...', 'info');
-                callBtn.disabled = true;
-                callBtn.textContent = '🔄 Соединение...';
-                hangupBtn.style.display = 'inline-block';
-                videoContainer.style.display = 'block';
+    <!-- Основное приложение -->
+    <div class="app-container hidden" id="appContainer">
+        <!-- Боковая панель -->
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <div class="user-profile" onclick="showProfile()">
+                    <div class="user-avatar" id="userAvatar">
+                        <div class="avatar-glow"></div>
+                        <span id="userInitials">КЧ</span>
+                    </div>
+                    <div class="user-info">
+                        <h3 id="displayName">Космический чат</h3>
+                        <p class="status online" id="userStatus">В сети</p>
+                    </div>
+                </div>
                 
-                roomCode.textContent = roomId;
-                roomInfo.style.display = 'block';
+                <div class="sidebar-controls">
+                    <button class="icon-button" onclick="createNewChat()" title="Новый чат">
+                        <i class="fas fa-plus"></i>
+                        <div class="button-glow"></div>
+                    </button>
+                    <button class="icon-button" onclick="startVideoCall()" title="Видеозвонок">
+                        <i class="fas fa-video"></i>
+                        <div class="button-glow"></div>
+                    </button>
+                </div>
+            </div>
 
-                await webrtcVless.startCall(localVideo, remoteVideo);
+            <div class="search-container">
+                <div class="search-input-wrapper">
+                    <i class="fas fa-search"></i>
+                    <input type="text" class="search-input" placeholder="Поиск в галактике..." id="searchInput" oninput="searchChats()">
+                    <div class="search-glow"></div>
+                </div>
+            </div>
+
+            <div class="chat-categories">
+                <div class="category active" data-category="all" onclick="filterChats('all')">
+                    <i class="fas fa-comments"></i>
+                    <span>Все чаты</span>
+                    <div class="category-glow"></div>
+                </div>
+                <div class="category" data-category="personal" onclick="filterChats('personal')">
+                    <i class="fas fa-user"></i>
+                    <span>Личные</span>
+                    <div class="category-glow"></div>
+                </div>
+                <div class="category" data-category="groups" onclick="filterChats('groups')">
+                    <i class="fas fa-users"></i>
+                    <span>Группы</span>
+                    <div class="category-glow"></div>
+                </div>
+                <div class="category" data-category="video" onclick="filterChats('video')">
+                    <i class="fas fa-video"></i>
+                    <span>Видеочаты</span>
+                    <div class="category-glow"></div>
+                </div>
+            </div>
+
+            <div class="chats-list" id="chatsList">
+                <!-- Чаты будут добавлены динамически -->
+            </div>
+        </div>
+
+        <!-- Основная область чата -->
+        <div class="chat-area">
+            <div class="chat-header" id="chatHeader">
+                <div class="chat-user-info">
+                    <div class="chat-avatar">
+                        <div class="avatar-glow"></div>
+                        <span>КЧ</span>
+                    </div>
+                    <div class="chat-user-details">
+                        <h3 id="chatTitle">Выберите чат</h3>
+                        <p class="chat-status" id="chatStatus">для начала общения</p>
+                    </div>
+                </div>
                 
-                updateStatus('🔄 Ожидаем подключения собеседника...', 'info');
-                callBtn.textContent = '⏳ Ожидание...';
+                <div class="chat-controls">
+                    <button class="icon-button" onclick="searchInChat()" title="Поиск в чате">
+                        <i class="fas fa-search"></i>
+                    </button>
+                    <button class="icon-button" onclick="startVoiceCall()" title="Голосовой звонок">
+                        <i class="fas fa-phone"></i>
+                    </button>
+                    <button class="icon-button" onclick="startVideoCall()" title="Видеозвонок">
+                        <i class="fas fa-video"></i>
+                    </button>
+                    <button class="icon-button" onclick="showChatMenu()" title="Меню">
+                        <i class="fas fa-ellipsis-v"></i>
+                    </button>
+                </div>
+            </div>
 
-            } catch (error) {
-                updateStatus('❌ Ошибка звонка: ' + error.message, 'error');
-                resetCallUI();
-            }
-        }
+            <div class="messages-container" id="messagesContainer">
+                <div class="welcome-screen">
+                    <div class="welcome-animation">
+                        <div class="floating-icons">
+                            <div class="floating-icon">💫</div>
+                            <div class="floating-icon">🚀</div>
+                            <div class="floating-icon">🌟</div>
+                            <div class="floating-icon">🌙</div>
+                            <div class="floating-icon">⭐</div>
+                        </div>
+                    </div>
+                    <h2 class="glow">Добро пожаловать в CosmosChat!</h2>
+                    <p>Выберите чат или создайте новый для начала космического общения</p>
+                </div>
+            </div>
 
-        // Hang up
-        function hangupCall() {
-            if (webrtcVless) {
-                webrtcVless.endCall();
-            }
+            <div class="message-input-area" id="messageInputArea" style="display: none;">
+                <div class="message-input-container">
+                    <button class="attach-button" onclick="showAttachMenu()">
+                        <i class="fas fa-paperclip"></i>
+                    </button>
+                    
+                    <div class="message-input-wrapper">
+                        <textarea class="message-input" id="messageInput" placeholder="Напишите сообщение..." 
+                                rows="1" oninput="autoResize(this)" onkeydown="handleMessageInput(event)"></textarea>
+                        <div class="input-glow"></div>
+                    </div>
+                    
+                    <button class="emoji-button" onclick="showEmojiPicker()">
+                        <i class="fas fa-smile"></i>
+                    </button>
+                    
+                    <button class="voice-button" onmousedown="startVoiceRecord()" onmouseup="stopVoiceRecord()">
+                        <i class="fas fa-microphone"></i>
+                    </button>
+                    
+                    <button class="send-button" onclick="sendMessage()" id="sendButton">
+                        <i class="fas fa-paper-plane"></i>
+                        <div class="send-glow"></div>
+                    </button>
+                </div>
+            </div>
+        </div>
 
-            updateStatus('📞 Звонок завершен', 'info');
-            resetCallUI();
-        }
+        <!-- Правая панель -->
+        <div class="right-panel" id="rightPanel">
+            <div class="panel-header">
+                <h3>Информация</h3>
+                <button class="close-panel" onclick="closeRightPanel()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <div class="panel-content" id="panelContent">
+                <!-- Контент панели будет динамическим -->
+            </div>
+        </div>
+    </div>
 
-        // Reset UI
-        function resetUI() {
-            connectBtn.textContent = '🛡️ Активировать защиту VLESS';
-            connectBtn.classList.remove('success');
-            connectBtn.disabled = false;
-            callBtn.disabled = true;
-            resetCallUI();
-        }
+    <!-- Модальные окна -->
+    <div class="modal-overlay" id="modalOverlay"></div>
+    
+    <!-- Уведомления -->
+    <div class="notifications-container" id="notificationsContainer"></div>
 
-        function resetCallUI() {
-            callBtn.textContent = '📞 Начать защищенный звонок';
-            callBtn.disabled = webrtcVless ? !webrtcVless.getStatus().vlessConnected : true;
-            hangupBtn.style.display = 'none';
-            videoContainer.style.display = 'none';
-            roomInfo.style.display = 'none';
-        }
+    <!-- Видеозвонок -->
+    <div class="video-call-overlay hidden" id="videoCallOverlay">
+        <div class="video-call-container">
+            <div class="video-streams">
+                <video id="localVideo" class="local-video" autoplay muted playsinline></video>
+                <video id="remoteVideo" class="remote-video" autoplay playsinline></video>
+            </div>
+            
+            <div class="call-controls">
+                <button class="call-button mute" onclick="toggleMute()" id="muteButton">
+                    <i class="fas fa-microphone"></i>
+                </button>
+                <button class="call-button camera" onclick="toggleCamera()" id="cameraButton">
+                    <i class="fas fa-video"></i>
+                </button>
+                <button class="call-button end" onclick="endCall()">
+                    <i class="fas fa-phone-slash"></i>
+                </button>
+                <button class="call-button speaker" onclick="toggleSpeaker()" id="speakerButton">
+                    <i class="fas fa-volume-up"></i>
+                </button>
+            </div>
+        </div>
+    </div>
 
-        // Event listeners
-        connectBtn.addEventListener('click', connectVLESS);
-        callBtn.addEventListener('click', startCall);
-        hangupBtn.addEventListener('click', hangupCall);
-
-        // Initialize
-        updateStatus('🛡️ Готов к активации VLESS защиты', 'info');
-        
-        console.log('🛡️ VideoCall VLESS Edition loaded');
-        console.log('🔑 Room ID:', roomId);
-    </script>
+    <!-- Скрипты -->
+    <script src="animations.js"></script>
+    <script src="auth.js"></script>
+    <script src="chat.js"></script>
+    <script src="videocall.js"></script>
+    <script src="app.js"></script>
 </body>
 </html>
