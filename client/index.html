@@ -3,60 +3,134 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CosmosChat - Видео чат</title>
+    <title>🎥 CosmosCall - Видеозвонки</title>
     <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
+    <!-- Фоновая анимация -->
+    <div class="animated-bg">
+        <div class="bubble"></div>
+        <div class="bubble"></div>
+        <div class="bubble"></div>
+        <div class="bubble"></div>
+        <div class="bubble"></div>
+    </div>
+
     <!-- Экран авторизации -->
     <div id="loginScreen" class="screen active">
-        <div class="container">
-            <h1>🚀 CosmosChat</h1>
-            <p>Космический видео-чат</p>
-            
-            <div class="form-group">
-                <input type="text" id="userName" placeholder="Ваше имя" required>
+        <div class="login-container">
+            <div class="logo">
+                <div class="logo-icon">🎥</div>
+                <h1>CosmosCall</h1>
+                <p>Видеозвонки без границ</p>
             </div>
             
-            <div class="form-group">
-                <input type="tel" id="userPhone" placeholder="+7 (999) 123-45-67" required>
+            <div class="login-form">
+                <div class="input-group">
+                    <input type="text" id="userName" placeholder=" " required>
+                    <label for="userName">👤 Ваше имя</label>
+                    <div class="input-line"></div>
+                </div>
+                
+                <div class="input-group">
+                    <input type="tel" id="userPhone" placeholder=" " required>
+                    <label for="userPhone">📱 Телефон</label>
+                    <div class="input-line"></div>
+                </div>
+                
+                <button id="loginBtn" class="btn-login">
+                    <span class="btn-text">Войти</span>
+                    <span class="btn-icon">→</span>
+                </button>
             </div>
-            
-            <button id="loginBtn" class="btn-primary">Войти в чат</button>
         </div>
     </div>
 
-    <!-- Главный экран чата -->
-    <div id="chatScreen" class="screen">
-        <div class="chat-container">
+    <!-- Главный экран с пользователями -->
+    <div id="mainScreen" class="screen">
+        <div class="main-container">
             <!-- Заголовок -->
-            <div class="header">
-                <div class="user-info">
-                    <span id="currentUserName">Пользователь</span>
-                    <button id="logoutBtn" class="btn-small">Выйти</button>
+            <header class="main-header">
+                <div class="header-left">
+                    <h2>🎥 CosmosCall</h2>
                 </div>
-            </div>
-
-            <!-- Список пользователей -->
-            <div class="sidebar">
-                <h3>Пользователи онлайн</h3>
-                <div id="usersList" class="users-list">
-                    <!-- Пользователи будут добавлены динамически -->
-                </div>
-            </div>
-
-            <!-- Область чата -->
-            <div class="main-chat">
-                <div id="messagesArea" class="messages-area">
-                    <div class="welcome-message">
-                        Добро пожаловать в CosmosChat! 🌌
+                <div class="header-center">
+                    <div class="user-badge">
+                        <span class="user-avatar" id="userAvatar">👤</span>
+                        <span id="currentUserName">Пользователь</span>
+                        <span class="status-dot online"></span>
                     </div>
                 </div>
-                
-                <div class="input-area">
-                    <input type="text" id="messageInput" placeholder="Введите сообщение...">
-                    <button id="sendBtn" class="btn-primary">Отправить</button>
-                    <button id="callBtn" class="btn-call">📹 Видеозвонок</button>
+                <div class="header-right">
+                    <button id="logoutBtn" class="btn-logout">
+                        <span>Выйти</span>
+                    </button>
                 </div>
+            </header>
+
+            <!-- Основной контент -->
+            <div class="main-content">
+                <!-- Список пользователей онлайн -->
+                <aside class="users-sidebar">
+                    <div class="sidebar-header">
+                        <h3>👥 Пользователи онлайн</h3>
+                        <span id="onlineCount" class="online-count">0</span>
+                    </div>
+                    <div id="usersList" class="users-list">
+                        <!-- Пользователи будут добавлены динамически -->
+                    </div>
+                    <div class="sidebar-footer">
+                        <p class="hint">💡 Нажмите на пользователя для звонка</p>
+                    </div>
+                </aside>
+
+                <!-- Центральная область -->
+                <main class="center-area">
+                    <div class="welcome-screen">
+                        <div class="welcome-content">
+                            <div class="welcome-icon">🚀</div>
+                            <h2>Добро пожаловать в CosmosCall!</h2>
+                            <p>Выберите пользователя из списка слева, чтобы начать видеозвонок</p>
+                            
+                            <div class="features">
+                                <div class="feature">
+                                    <span class="feature-icon">🎥</span>
+                                    <span>HD видео</span>
+                                </div>
+                                <div class="feature">
+                                    <span class="feature-icon">🔒</span>
+                                    <span>Безопасное соединение</span>
+                                </div>
+                                <div class="feature">
+                                    <span class="feature-icon">⚡</span>
+                                    <span>Мгновенное подключение</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </main>
+            </div>
+        </div>
+    </div>
+
+    <!-- Экран входящего звонка -->
+    <div id="incomingCallScreen" class="modal-overlay">
+        <div class="incoming-call-modal">
+            <div class="pulse-ring"></div>
+            <div class="caller-avatar">👤</div>
+            <h2>Входящий звонок</h2>
+            <p id="callerName">Неизвестный</p>
+            
+            <div class="call-actions">
+                <button id="acceptCall" class="btn-accept">
+                    <span>✅</span>
+                    Принять
+                </button>
+                <button id="rejectCall" class="btn-reject">
+                    <span>❌</span>
+                    Отклонить
+                </button>
             </div>
         </div>
     </div>
@@ -64,13 +138,34 @@
     <!-- Экран видеозвонка -->
     <div id="videoScreen" class="screen">
         <div class="video-container">
-            <video id="localVideo" class="video-local" autoplay muted></video>
-            <video id="remoteVideo" class="video-remote" autoplay></video>
+            <!-- Удаленное видео (полный экран) -->
+            <video id="remoteVideo" class="video-remote" autoplay playsinline></video>
             
+            <!-- Локальное видео (картинка в картинке) -->
+            <div class="video-local-wrapper">
+                <video id="localVideo" class="video-local" autoplay muted playsinline></video>
+            </div>
+            
+            <!-- Информация о звонке -->
+            <div class="call-info">
+                <span id="callDuration">00:00</span>
+                <span id="calleeName">Собеседник</span>
+            </div>
+            
+            <!-- Контролы видео -->
             <div class="video-controls">
-                <button id="toggleMic" class="btn-control">🎤</button>
-                <button id="toggleCamera" class="btn-control">📹</button>
-                <button id="endCall" class="btn-danger">Завершить</button>
+                <button id="toggleMic" class="btn-control" title="Микрофон">
+                    <span class="control-icon">🎤</span>
+                </button>
+                <button id="toggleCamera" class="btn-control" title="Камера">
+                    <span class="control-icon">📹</span>
+                </button>
+                <button id="toggleScreen" class="btn-control" title="Демонстрация экрана">
+                    <span class="control-icon">🖥️</span>
+                </button>
+                <button id="endCall" class="btn-end-call" title="Завершить звонок">
+                    <span class="control-icon">📞</span>
+                </button>
             </div>
         </div>
     </div>
