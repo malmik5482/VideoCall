@@ -36,10 +36,22 @@ class CosmosApp {
             // Анимация прогресса загрузки
             const progressBar = document.querySelector('.loading-progress');
             if (progressBar) {
-                progressBar.style.animation = 'loading-progress 3s ease-in-out forwards';
+                progressBar.style.animation = 'loading-progress 2s ease-in-out forwards';
             }
             
-            await this.delay(3000); // Показываем красивую анимацию
+            await this.delay(2000); // Показываем красивую анимацию
+            
+            // Скрываем экран загрузки, если нет авторизованного пользователя
+            if (!localStorage.getItem('cosmosChat_user')) {
+                this.hideLoadingScreen();
+            }
+        }
+    }
+
+    hideLoadingScreen() {
+        const loadingScreen = document.getElementById('loadingScreen');
+        if (loadingScreen) {
+            loadingScreen.classList.add('hidden');
         }
     }
 
@@ -110,7 +122,10 @@ class CosmosApp {
         const authScreen = document.getElementById('authScreen');
         
         if (loadingScreen && authScreen) {
-            await ScreenTransitions.morphTransition(loadingScreen, authScreen);
+            // Простое переключение экранов
+            loadingScreen.classList.add('hidden');
+            authScreen.classList.remove('hidden');
+            console.log('🔓 Показываем экран авторизации из app.js');
         }
     }
 

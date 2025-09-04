@@ -11,6 +11,17 @@ class AuthSystem {
     }
 
     init() {
+        // Устанавливаем таймаут на случай проблем с инициализацией
+        setTimeout(() => {
+            const loadingScreen = document.getElementById('loadingScreen');
+            const authScreen = document.getElementById('authScreen');
+            
+            if (!loadingScreen.classList.contains('hidden') && authScreen.classList.contains('hidden')) {
+                console.log('⚠️ Принудительно показываем экран авторизации');
+                this.showAuthScreen();
+            }
+        }, 5000);
+        
         this.checkExistingAuth();
         this.setupEventListeners();
     }
@@ -25,8 +36,23 @@ class AuthSystem {
             } catch (error) {
                 console.error('❌ Ошибка при загрузке данных пользователя:', error);
                 localStorage.removeItem('cosmosChat_user');
+                this.showAuthScreen();
             }
+        } else {
+            // Если нет сохраненного пользователя, показываем экран авторизации
+            console.log('👤 Пользователь не найден, показываем форму регистрации');
+            this.showAuthScreen();
         }
+    }
+
+    showAuthScreen() {
+        const loadingScreen = document.getElementById('loadingScreen');
+        const authScreen = document.getElementById('authScreen');
+        
+        loadingScreen.classList.add('hidden');
+        authScreen.classList.remove('hidden');
+        
+        console.log('🔓 Показываем экран авторизации');
     }
 
     async autoLogin() {
