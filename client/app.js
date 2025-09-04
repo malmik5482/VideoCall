@@ -91,11 +91,15 @@ class CosmosApp {
         
         // Обработка потери соединения
         window.addEventListener('offline', () => {
-            NotificationSystem.show('🌐 Соединение потеряно. Переходим в офлайн режим.', 'warning');
+            if (window.NotificationSystem && window.NotificationSystem.show) {
+                window.NotificationSystem.show('🌐 Соединение потеряно. Переходим в офлайн режим.', 'warning');
+            }
         });
         
         window.addEventListener('online', () => {
-            NotificationSystem.show('🌐 Соединение восстановлено!', 'success');
+            if (window.NotificationSystem && window.NotificationSystem.show) {
+                window.NotificationSystem.show('🌐 Соединение восстановлено!', 'success');
+            }
         });
     }
 
@@ -358,10 +362,11 @@ class CosmosApp {
             'ESC - Закрыть модальные окна'
         ];
         
-        NotificationSystem.show(
-            '⌨️ Горячие клавиши:\n' + shortcuts.join('\n'), 
-            'info', 
-            8000
+        if (window.NotificationSystem && window.NotificationSystem.show) {
+            window.NotificationSystem.show(
+                '⌨️ Горячие клавиши:\n' + shortcuts.join('\n'), 
+                'info', 
+                8000
         );
     }
 
@@ -382,9 +387,10 @@ class CosmosApp {
         console.error('🚨 Глобальная ошибка:', error);
         
         // Показываем пользователю дружественное сообщение
-        NotificationSystem.show(
-            '⚠️ Произошла неожиданная ошибка. Приложение продолжает работать.',
-            'warning'
+        if (window.NotificationSystem && window.NotificationSystem.show) {
+            window.NotificationSystem.show(
+                '⚠️ Произошла неожиданная ошибка. Приложение продолжает работать.',
+                'warning'
         );
         
         // В продакшене здесь бы отправлялся отчет об ошибке
@@ -489,7 +495,9 @@ class CosmosApp {
     }
 
     editProfile() {
-        NotificationSystem.show('✏️ Редактирование профиля будет добавлено в следующем обновлении!', 'info');
+        if (window.NotificationSystem && window.NotificationSystem.show) {
+            window.NotificationSystem.show('✏️ Редактирование профиля будет добавлено в следующем обновлении!', 'info');
+        }
     }
 
     logout() {

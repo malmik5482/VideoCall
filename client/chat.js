@@ -36,7 +36,9 @@ class ChatSystem {
         this.ws.onopen = () => {
             this.isConnected = true;
             console.log('🌐 WebSocket подключен');
-            NotificationSystem.show('🌐 Подключение к космической сети установлено', 'success');
+            if (window.NotificationSystem && window.NotificationSystem.show) {
+                window.NotificationSystem.show('🌐 Подключение к космической сети установлено', 'success');
+            }
             this.updateConnectionStatus(true);
             
             // Если есть пользователь, аутентифицируемся
@@ -60,7 +62,9 @@ class ChatSystem {
         
         this.ws.onerror = (error) => {
             console.error('❌ WebSocket ошибка:', error);
-            NotificationSystem.show('❌ Ошибка подключения к серверу', 'error');
+            if (window.NotificationSystem && window.NotificationSystem.show) {
+                window.NotificationSystem.show('❌ Ошибка подключения к серверу', 'error');
+            }
         };
     }
     
@@ -148,7 +152,9 @@ class ChatSystem {
                 this.handleSearchResults(message);
                 break;
             case 'error':
-                NotificationSystem.show(`❌ ${message.message}`, 'error');
+                if (window.NotificationSystem && window.NotificationSystem.show) {
+                    window.NotificationSystem.show(`❌ ${message.message}`, 'error');
+                }
                 break;
         }
     }
@@ -538,10 +544,12 @@ class ChatSystem {
         
         // Показываем уведомление
         if (this.currentChat?.id !== chatId) {
-            NotificationSystem.show(
-                `💬 ${message.senderName}: ${message.text.substr(0, 50)}${message.text.length > 50 ? '...' : ''}`,
-                'info'
-            );
+            if (window.NotificationSystem && window.NotificationSystem.show) {
+                window.NotificationSystem.show(
+                    `💬 ${message.senderName}: ${message.text.substr(0, 50)}${message.text.length > 50 ? '...' : ''}`,
+                    'info'
+                );
+            }
         }
     }
 
@@ -598,7 +606,9 @@ class ChatSystem {
 
     // Создание нового чата
     createNewChat() {
-        NotificationSystem.show('🚀 Функция создания чатов будет добавлена в следующем обновлении!', 'info');
+        if (window.NotificationSystem && window.NotificationSystem.show) {
+            window.NotificationSystem.show('🚀 Функция создания чатов будет добавлена в следующем обновлении!', 'info');
+        }
     }
 
     // Поиск в чатах
