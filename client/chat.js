@@ -608,10 +608,281 @@ function createNewChat() { window.chatSystem?.createNewChat(); }
 function searchChats() { window.chatSystem?.searchChats(); }
 function filterChats(category) { window.chatSystem?.filterChats(category); }
 
+// Новые функции поиска пользователей
+function openUserSearch() { window.userSearchSystem?.openSearch(); }
+function closeUserSearch() { window.userSearchSystem?.closeSearch(); }
+function searchUserByPhone() { window.userSearchSystem?.searchByPhone(); }
+function createChatWithUser() { window.userSearchSystem?.createChat(); }
+function callUser() { window.userSearchSystem?.callUser(); }
+
+// ====== СИСТЕМА ПОИСКА ПОЛЬЗОВАТЕЛЕЙ ======
+class UserSearchSystem {
+    constructor() {
+        this.modal = null;
+        this.searchInput = null;
+        this.searchResults = null;
+        this.searchEmpty = null;
+        this.foundUser = null;
+        this.init();
+    }
+
+    init() {
+        this.modal = document.getElementById('userSearchModal');
+        this.searchInput = document.getElementById('searchPhone');
+        this.searchResults = document.getElementById('searchResults');
+        this.searchEmpty = document.getElementById('searchEmpty');
+        
+        // Форматирование номера телефона в поиске
+        if (this.searchInput) {
+            this.searchInput.addEventListener('input', (e) => {
+                this.formatPhoneNumber(e.target);
+            });
+        }
+    }
+
+    formatPhoneNumber(input) {
+        let value = input.value.replace(/\D/g, '');
+        
+        if (value.length === 0) {
+            input.value = '';
+            return;
+        }
+        
+        if (value.startsWith('8')) {
+            value = '7' + value.substring(1);
+        }
+        
+        if (!value.startsWith('7')) {
+            value = '7' + value;
+        }
+        
+        let formatted = '+7';
+        if (value.length > 1) {
+            formatted += ' (' + value.substring(1, 4);
+            if (value.length >= 5) {
+                formatted += ') ' + value.substring(4, 7);
+                if (value.length >= 8) {
+                    formatted += '-' + value.substring(7, 9);
+                    if (value.length >= 10) {
+                        formatted += '-' + value.substring(9, 11);
+                    }
+                }
+            }
+        }
+        input.value = formatted;
+    }
+
+    openSearch() {
+        console.log('🔍 Открываем поиск пользователей');
+        this.modal.classList.remove('hidden');
+        this.searchInput.focus();
+        this.clearResults();
+    }
+
+    closeSearch() {
+        console.log('❌ Закрываем поиск пользователей');
+        this.modal.classList.add('hidden');
+        this.clearResults();
+        this.searchInput.value = '';
+    }
+
+    clearResults() {
+        this.searchResults.classList.add('hidden');
+        this.searchEmpty.classList.add('hidden');
+        this.foundUser = null;
+    }
+
+    async searchByPhone() {
+        const phoneInput = this.searchInput.value;
+        const cleanPhone = phoneInput.replace(/\D/g, '');
+        
+        console.log('🔍 Поиск пользователя по номеру:', cleanPhone);
+        
+        if (!this.validatePhone(cleanPhone)) {
+            window.cosmosApp?.modules?.notifications?.show('📱 Введите корректный номер телефона', 'warning') || 
+            alert('📱 Введите корректный номер телефона');
+            return;
+        }
+
+        // Показываем индикатор загрузки
+        const searchBtn = document.getElementById('searchUserBtn');
+        const originalText = searchBtn.querySelector('.button-text').textContent;
+        searchBtn.querySelector('.button-text').textContent = '🔍 Поиск...';
+        searchBtn.disabled = true;
+
+        try {
+            // Ищем пользователя в локальном хранилище
+            const user = this.findUserByPhone(cleanPhone);
+            
+            // Имитируем задержку поиска
+            await this.delay(1000);
+            
+            if (user) {
+                this.showUserResult(user);
+            } else {
+                this.showEmptyResult();
+            }
+
+        } catch (error) {
+            console.error('❌ Ошибка поиска:', error);
+            window.cosmosApp?.modules?.notifications?.show('❌ Ошибка при поиске пользователя', 'error') || 
+            alert('❌ Ошибка при поиске пользователя');
+        } finally {
+            // Восстанавливаем кнопку
+            searchBtn.querySelector('.button-text').textContent = originalText;
+            searchBtn.disabled = false;
+        }
+    }
+
+    findUserByPhone(phone) {
+        // Ищем в локальном хранилище
+        const savedUser = localStorage.getItem('cosmosChat_user');
+        if (savedUser) {
+            const currentUser = JSON.parse(savedUser);
+            if (currentUser.phone === phone) {
+                return null; // Это тот же пользователь
+            }
+        }
+
+        // Генерируем демо-пользователя для тестирования
+        // В реальном приложении здесь был бы запрос к серверу
+        const demoUsers = [
+            { phone: '79001234567', name: 'Анна Смирнова' },
+            { phone: '79009876543', name: 'Максим Петров' },
+            { phone: '79005556677', name: 'Елена Иванова' },
+            { phone: '79003334455', name: 'Дмитрий Козлов' },
+            { phone: '79007778899', name: 'София Николаева' }
+        ];
+
+        const foundUser = demoUsers.find(user => user.phone === phone);
+        if (foundUser) {
+            return {
+                ...foundUser,
+                id: `user_${phone}`,
+                avatar: this.generateAvatar(foundUser.name),
+                status: 'В сети'
+            };
+        }
+
+        return null;
+    }
+
+    generateAvatar(name) {
+        const initials = name.split(' ').map(word => word[0]).join('').toUpperCase().substr(0, 2);
+        const colors = ['#6366f1', '#3b82f6', '#06b6d4', '#ec4899', '#8b5cf6'];
+        const color = colors[name.length % colors.length];
+        
+        return {
+            initials: initials,
+            color: color
+        };
+    }
+
+    showUserResult(user) {
+        console.log('✅ Пользователь найден:', user);
+        this.foundUser = user;
+        
+        // Заполняем данные пользователя
+        document.getElementById('userInitials').textContent = user.avatar.initials;
+        document.getElementById('userName').textContent = user.name;
+        document.getElementById('userPhone').textContent = this.formatPhoneDisplay(user.phone);
+        
+        // Устанавливаем цвет аватара
+        const avatarElement = document.querySelector('#userResult .user-avatar');
+        avatarElement.style.background = `linear-gradient(135deg, ${user.avatar.color}, #3b82f6)`;
+        
+        // Показываем результат
+        this.searchResults.classList.remove('hidden');
+        this.searchEmpty.classList.add('hidden');
+    }
+
+    showEmptyResult() {
+        console.log('❌ Пользователь не найден');
+        this.searchResults.classList.add('hidden');
+        this.searchEmpty.classList.remove('hidden');
+    }
+
+    formatPhoneDisplay(phone) {
+        if (phone.length === 11) {
+            return `+7 (${phone.substring(1, 4)}) ${phone.substring(4, 7)}-${phone.substring(7, 9)}-${phone.substring(9, 11)}`;
+        }
+        return '+' + phone;
+    }
+
+    async createChat() {
+        if (!this.foundUser) return;
+        
+        console.log('💬 Создаем чат с пользователем:', this.foundUser.name);
+        
+        // Создаем новый чат с найденным пользователем
+        const newChat = {
+            id: `chat_${this.foundUser.id}`,
+            name: this.foundUser.name,
+            avatar: this.foundUser.avatar,
+            type: 'personal',
+            lastMessage: '',
+            lastTime: new Date().toISOString(),
+            unread: 0,
+            status: this.foundUser.status,
+            phone: this.foundUser.phone,
+            messages: []
+        };
+
+        // Добавляем чат в систему
+        if (window.chatSystem) {
+            window.chatSystem.chats.push(newChat);
+            window.chatSystem.renderChats();
+            window.chatSystem.openChat(newChat.id);
+            
+            // Сохраняем в локальное хранилище
+            localStorage.setItem('cosmosChat_chats', JSON.stringify(window.chatSystem.chats));
+        }
+
+        // Закрываем модальное окно
+        this.closeSearch();
+        
+        // Показываем уведомление
+        window.cosmosApp?.modules?.notifications?.show(`💬 Чат с ${this.foundUser.name} создан!`, 'success') || 
+        alert(`💬 Чат с ${this.foundUser.name} создан!`);
+    }
+
+    async callUser() {
+        if (!this.foundUser) return;
+        
+        console.log('📞 Звоним пользователю:', this.foundUser.name);
+        
+        // Закрываем модальное окно
+        this.closeSearch();
+        
+        // Инициируем видеозвонок
+        if (window.videoCallSystem) {
+            window.videoCallSystem.startCall({
+                targetUser: this.foundUser,
+                type: 'video'
+            });
+        }
+        
+        // Показываем уведомление
+        window.cosmosApp?.modules?.notifications?.show(`📹 Вызываем ${this.foundUser.name}...`, 'info') || 
+        alert(`📹 Вызываем ${this.foundUser.name}...`);
+    }
+
+    validatePhone(phone) {
+        // Проверяем российский номер: 7XXXXXXXXXX (11 цифр)
+        const phoneRegex = /^7\d{10}$/;
+        return phoneRegex.test(phone);
+    }
+
+    delay(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
+}
+
 // Инициализация
 document.addEventListener('DOMContentLoaded', () => {
     window.chatSystem = new ChatSystem();
     window.ChatSystem = window.chatSystem;
+    window.userSearchSystem = new UserSearchSystem();
 });
 
 // Экспорт

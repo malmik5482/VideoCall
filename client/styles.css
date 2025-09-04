@@ -1314,6 +1314,212 @@ body {
     }
 }
 
+/* ====== МОДАЛЬНОЕ ОКНО ПОИСКА ПОЛЬЗОВАТЕЛЕЙ ====== */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.8);
+    backdrop-filter: blur(10px);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.modal-overlay:not(.hidden) {
+    opacity: 1;
+}
+
+.modal-content {
+    background: linear-gradient(135deg, 
+        rgba(26, 26, 46, 0.95) 0%, 
+        rgba(22, 33, 62, 0.95) 100%
+    );
+    backdrop-filter: blur(20px);
+    border: 1px solid var(--border-color);
+    border-radius: 20px;
+    width: 90%;
+    max-width: 500px;
+    max-height: 90vh;
+    overflow: hidden;
+    box-shadow: var(--glow-purple);
+    transform: scale(0.8);
+    transition: transform 0.3s ease;
+}
+
+.modal-overlay:not(.hidden) .modal-content {
+    transform: scale(1);
+}
+
+.modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 25px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.modal-title {
+    font-size: 24px;
+    font-weight: 600;
+    margin: 0;
+}
+
+.modal-close {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 20px;
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 8px;
+    transition: all 0.3s ease;
+}
+
+.modal-close:hover {
+    color: var(--cosmic-purple);
+    background: rgba(99, 102, 241, 0.1);
+}
+
+.modal-body {
+    padding: 25px;
+}
+
+.search-form {
+    margin-bottom: 25px;
+}
+
+.search-form .form-group {
+    margin-bottom: 20px;
+}
+
+.search-results {
+    margin-top: 25px;
+}
+
+.results-title {
+    font-size: 18px;
+    font-weight: 600;
+    margin-bottom: 15px;
+    color: var(--text-primary);
+}
+
+.user-result {
+    display: flex;
+    align-items: center;
+    padding: 15px;
+    background: linear-gradient(135deg, 
+        rgba(99, 102, 241, 0.1) 0%, 
+        rgba(59, 130, 246, 0.1) 100%
+    );
+    border: 1px solid rgba(99, 102, 241, 0.3);
+    border-radius: 15px;
+    margin-bottom: 10px;
+    transition: all 0.3s ease;
+}
+
+.user-result:hover {
+    background: linear-gradient(135deg, 
+        rgba(99, 102, 241, 0.2) 0%, 
+        rgba(59, 130, 246, 0.2) 100%
+    );
+    box-shadow: var(--glow-purple);
+}
+
+.user-avatar {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--cosmic-purple), var(--cosmic-blue));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-size: 18px;
+    margin-right: 15px;
+    position: relative;
+}
+
+.user-info {
+    flex: 1;
+}
+
+.user-info h4 {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 4px;
+    color: var(--text-primary);
+}
+
+.user-info p {
+    font-size: 14px;
+    color: var(--text-secondary);
+    margin: 0;
+}
+
+.user-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.action-button {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    transition: all 0.3s ease;
+    position: relative;
+}
+
+.action-button.message {
+    background: linear-gradient(135deg, var(--cosmic-cyan), var(--cosmic-blue));
+    color: white;
+}
+
+.action-button.call {
+    background: linear-gradient(135deg, var(--cosmic-purple), var(--cosmic-pink));
+    color: white;
+}
+
+.action-button:hover {
+    transform: scale(1.1);
+    box-shadow: 0 0 20px rgba(99, 102, 241, 0.5);
+}
+
+.search-empty {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--text-secondary);
+}
+
+.empty-icon {
+    font-size: 48px;
+    margin-bottom: 15px;
+    opacity: 0.6;
+}
+
+.search-empty h3 {
+    font-size: 18px;
+    font-weight: 600;
+    margin-bottom: 8px;
+    color: var(--text-primary);
+}
+
+.search-empty p {
+    font-size: 14px;
+    margin: 0;
+}
+
 /* ====== АНИМАЦИИ ПРОИЗВОДИТЕЛЬНОСТИ ====== */
 @media (prefers-reduced-motion: reduce) {
     *,

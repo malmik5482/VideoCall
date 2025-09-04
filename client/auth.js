@@ -492,7 +492,33 @@ class AuthSystem {
     }
 
     // Методы переключения форм
+    switchToLogin() {
+        console.log('🔄 Переключение на форму входа');
+        this.showLoginForm();
+    }
+
+    switchToRegister() {
+        console.log('🔄 Переключение на форму регистрации');  
+        this.showRegistrationForm();
+    }
+
     showLoginForm() {
+        const registrationForm = document.getElementById('registrationForm');
+        const loginForm = document.getElementById('loginForm');
+        
+        registrationForm.classList.add('hidden');
+        loginForm.classList.remove('hidden');
+    }
+
+    showRegistrationForm() {
+        const registrationForm = document.getElementById('registrationForm');
+        const loginForm = document.getElementById('loginForm');
+        
+        loginForm.classList.add('hidden');
+        registrationForm.classList.remove('hidden');
+    }
+
+    showOldLoginForm() {
         const registrationForm = document.getElementById('registrationForm');
         const loginForm = document.getElementById('loginForm');
         
