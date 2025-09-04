@@ -5,15 +5,12 @@ class VLESSClient {
   constructor(config) {
     this.config = {
       address: config.address || '95.181.173.120',
-      port: config.port || 8443,
+      port: config.port || 8444,  // New WebSocket port
       uuid: config.uuid || '89462a65-fafa-4f9a-9efd-2be01a001778',
-      security: config.security || 'reality',
-      sni: config.sni || 'google.com',
-      fp: config.fp || 'chrome',
-      pbk: config.pbk || 'sYRQrrHz53_pV3JTotREtRsdsc71UmUQflWPbe3M3CE',
-      sid: config.sid || 'fd9f991d',
-      spx: config.spx || '/',
-      flow: config.flow || 'xtls-rprx-vision'
+      security: config.security || 'none',  // No security for WebSocket
+      transport: config.transport || 'ws',   // WebSocket transport
+      path: config.path || '/',             // WebSocket path
+      host: config.host || ''               // WebSocket host
     };
     
     this.connected = false;
@@ -73,57 +70,58 @@ class VLESSClient {
     return header.slice(0, offset);
   }
 
-  // Connect using WebSocket proxy to VLESS server
+  // Connect directly to VLESS WebSocket server
   async connect() {
     return new Promise((resolve, reject) => {
       try {
-        // Попробуем основной WebSocket endpoint с VLESS параметром
-        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const host = window.location.host;
-        const wsUrl = `${protocol}//${host}/ws?type=vless`;
+        // Direct connection to VLESS WebSocket server
+        const protocol = 'wss:'; // Always use secure WebSocket
+        const wsUrl = `${protocol}//${this.config.address}:${this.config.port}${this.config.path}`;
         
-        console.log(`🌐 Подключаемся через основной WebSocket с VLESS: ${wsUrl}`);
-        
-        console.log(`🔄 Connecting to VLESS proxy: ${wsUrl}`);
+        console.log(`🌐 Подключаемся напрямую к VLESS WebSocket: ${wsUrl}`);
+        console.log(`🔄 Connecting directly to VLESS WebSocket: ${wsUrl}`);
         
         this.socket = new WebSocket(wsUrl);
         this.socket.binaryType = 'arraybuffer';
         
         this.socket.onopen = () => {
-          console.log('✅ WebSocket прокси подключен, ждем установки VLESS туннеля...');
-          // Прокси сервер автоматически обрабатывает VLESS handshake
+          console.log('✅ VLESS WebSocket подключен, отправляем VLESS handshake...');
+          
+          // Send VLESS handshake
+          const vlessHeader = this.createVLESSOHeader(1, 2, 'google.com', 443);
+          this.socket.send(vlessHeader);
+          
+          this.connected = true;
+          console.log('🛡️ VLESS WebSocket туннель установлен');
+          
+          // Send keepalive ping
+          setTimeout(() => {
+            if (this.isConnected()) {
+              this.send('ping');
+              console.log('📡 Sent keepalive ping through VLESS WebSocket');
+            }
+          }, 1000);
+          
+          resolve(true);
         };
         
         this.socket.onmessage = (event) => {
           try {
-            // Handle both JSON control messages and binary data
-            if (typeof event.data === 'string') {
-              const message = JSON.parse(event.data);
-              
-              if (message.type === 'vless-connected') {
-                this.connected = true;
-                console.log('🛡️ VLESS tunnel established through proxy');
-                resolve(true);
-              } else if (message.type === 'vless-error') {
-                console.error('❌ VLESS proxy error:', message.error);
-                reject(new Error(message.error));
-              } else if (message.type === 'vless-disconnected') {
-                this.connected = false;
-                console.log('🔌 VLESS tunnel disconnected');
-                if (this.onClose) this.onClose();
-              }
-            } else {
-              // Binary data from VLESS server
+            // Handle binary data from VLESS server
+            if (event.data instanceof ArrayBuffer) {
               if (this.onData) {
                 this.onData(new Uint8Array(event.data));
+              }
+            } else if (typeof event.data === 'string') {
+              // Handle text data or control messages
+              console.log('📄 VLESS text data:', event.data);
+              if (this.onData) {
+                const textBytes = new TextEncoder().encode(event.data);
+                this.onData(textBytes);
               }
             }
           } catch (error) {
             console.warn('VLESS message parse error:', error);
-            // If it's not JSON, treat as binary
-            if (this.onData) {
-              this.onData(new Uint8Array(event.data));
-            }
           }
         };
         
@@ -135,8 +133,9 @@ class VLESSClient {
         
         this.socket.onerror = (error) => {
           this.connected = false;
-          console.error('❌ WebSocket прокси ошибка:', error);
-          console.error('🔗 Проверьте доступность:', wsUrl);
+          console.error('❌ VLESS WebSocket ошибка:', error);
+          console.error('🔗 Проверьте доступность VLESS сервера:', wsUrl);
+          console.error('🔧 Убедитесь что VLESS сервер поддерживает WebSocket транспорт');
           if (this.onError) this.onError(error);
           reject(error);
         };
@@ -144,7 +143,7 @@ class VLESSClient {
         // Timeout
         setTimeout(() => {
           if (!this.connected) {
-            reject(new Error('VLESS connection timeout'));
+            reject(new Error('VLESS WebSocket connection timeout'));
           }
         }, 10000);
         
@@ -196,10 +195,11 @@ class WebRTCOverVLESS {
   async initVLESS() {
     this.vlessClient = new VLESSClient({
       address: '95.181.173.120',
-      port: 8443,
+      port: 8444,
       uuid: '89462a65-fafa-4f9a-9efd-2be01a001778',
-      sni: 'google.com',
-      security: 'reality'
+      transport: 'ws',
+      path: '/',
+      security: 'none'
     });
 
     // Handle VLESS data
@@ -300,14 +300,11 @@ class WebRTCOverVLESS {
 
       localVideoElement.srcObject = this.localStream;
 
-      // Create peer connection with VLESS-routed ICE servers
+      // Create peer connection with public STUN servers (VLESS will route traffic)
       const iceServers = [
-        { urls: `stun:${this.vlessClient.config.address}:3478` },
-        { 
-          urls: `turn:${this.vlessClient.config.address}:3478`,
-          username: 'vless-turn',
-          credential: this.vlessClient.config.uuid
-        }
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' },
+        { urls: 'stun:stun2.l.google.com:19302' }
       ];
 
       this.peerConnection = new RTCPeerConnection({ iceServers });

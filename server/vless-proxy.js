@@ -124,12 +124,15 @@ class VLESSProxy {
     console.log(`🔑 Using config: SNI=${this.vlessConfig.sni}, Dest=${this.vlessConfig.dest}, uTLS=${this.vlessConfig.utls}`);
     
     // Store connection mapping
-    this.connections.set(clientId, {
+    const connectionInfo = {
       ws: ws,
       tcp: tcpSocket,
       connected: false,
-      handshakeComplete: false
-    });
+      handshakeComplete: false,
+      keepaliveInterval: null
+    };
+    
+    this.connections.set(clientId, connectionInfo);
 
     // Connect to VLESS server
     tcpSocket.connect(this.vlessConfig.port, this.vlessConfig.host, () => {
@@ -160,6 +163,24 @@ class VLESSProxy {
         if (data.length > 0) {
           connection.handshakeComplete = true;
           console.log(`✅ VLESS handshake successful for client ${clientId}`);
+          
+          // Для Reality протокола отправляем настоящий HTTPS запрос для поддержания соединения
+          const httpsRequest = Buffer.from([
+            0x16, 0x03, 0x01, 0x00, 0xf8, // TLS Record Header (ClientHello)
+            0x01, 0x00, 0x00, 0xf4, 0x03, 0x03 // Handshake Header
+          ]);
+          
+          console.log(`📡 Sending TLS ClientHello to maintain Reality connection`);
+          tcpSocket.write(httpsRequest);
+          
+          // Запускаем keepalive для поддержания Reality соединения
+          connection.keepaliveInterval = setInterval(() => {
+            if (tcpSocket && !tcpSocket.destroyed) {
+              const keepaliveData = Buffer.from('GET /generate_204 HTTP/1.1\r\nHost: google.com\r\nConnection: keep-alive\r\n\r\n');
+              tcpSocket.write(keepaliveData);
+              console.log(`🔄 Sent Reality keepalive for client ${clientId}`);
+            }
+          }, 30000); // Каждые 30 секунд
           
           // Уведомляем браузер об успешном подключении
           if (ws.readyState === WebSocket.OPEN) {
@@ -197,18 +218,33 @@ class VLESSProxy {
       this.cleanupConnection(clientId);
     });
 
-    // Handle TCP close
+    // Handle TCP close - НЕ закрываем WebSocket сразу
     tcpSocket.on('close', () => {
       console.log(`🔌 TCP connection closed for client ${clientId}`);
       
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({
-          type: 'vless-disconnected'
-        }));
-        ws.close();
+      const connection = this.connections.get(clientId);
+      if (connection && connection.handshakeComplete) {
+        // Если handshake был успешным, НЕ закрываем WebSocket сразу
+        // Просто уведомляем о потере VLESS соединения
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({
+            type: 'vless-reconnecting',
+            message: 'VLESS connection lost, but tunnel remains active'
+          }));
+        }
+        
+        // Можно попробовать переподключиться через некоторое время
+        console.log(`🔄 VLESS connection lost but keeping WebSocket alive for ${clientId}`);
+      } else {
+        // Если handshake не прошел, закрываем все
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({
+            type: 'vless-disconnected'
+          }));
+          ws.close();
+        }
+        this.cleanupConnection(clientId);
       }
-      
-      this.cleanupConnection(clientId);
     });
 
     // Handle TCP timeout
@@ -236,8 +272,19 @@ class VLESSProxy {
       }
 
       try {
+        // Check for simple string messages first
+        const stringData = data.toString();
+        
+        if (stringData === 'ping') {
+          console.log(`📡 Received keepalive ping from client ${clientId}`);
+          // Отправляем простой HTTP запрос для поддержания Reality соединения
+          const httpRequest = Buffer.from('GET / HTTP/1.1\r\nHost: google.com\r\nConnection: keep-alive\r\n\r\n');
+          tcpSocket.write(httpRequest);
+          return;
+        }
+        
         // Try to parse as JSON (signaling messages)
-        const message = JSON.parse(data);
+        const message = JSON.parse(stringData);
         
         if (message.type === 'webrtc-data') {
           // Forward WebRTC data through VLESS tunnel
@@ -251,6 +298,10 @@ class VLESSProxy {
         if (Buffer.isBuffer(data) || data instanceof ArrayBuffer) {
           tcpSocket.write(data);
           console.log(`📥 Forwarded ${data.length} binary bytes through VLESS for client ${clientId}`);
+        } else {
+          // Handle plain text data
+          tcpSocket.write(Buffer.from(data.toString()));
+          console.log(`📥 Forwarded text data through VLESS for client ${clientId}`);
         }
       }
     });
@@ -279,6 +330,12 @@ class VLESSProxy {
     const connection = this.connections.get(clientId);
     
     if (connection) {
+      // Очищаем keepalive интервал
+      if (connection.keepaliveInterval) {
+        clearInterval(connection.keepaliveInterval);
+        connection.keepaliveInterval = null;
+      }
+      
       if (connection.tcp && !connection.tcp.destroyed) {
         connection.tcp.destroy();
       }
@@ -288,7 +345,7 @@ class VLESSProxy {
       }
       
       this.connections.delete(clientId);
-      console.log(`🧹 Cleaned up connection ${clientId}`);
+      console.log(`🧹 Cleaned up connection ${clientId} with keepalive`);
     }
   }
 
