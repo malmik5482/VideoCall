@@ -375,6 +375,32 @@
         </div>
     </div>
 
+    <!-- Быстрая инициализация для предотвращения блюра -->
+    <script>
+        // Немедленная проверка и исправление блюра при загрузке
+        (function() {
+            // Убираем любые блюр эффекты немедленно
+            document.body.style.filter = 'none';
+            document.body.style.backdropFilter = 'none';
+            document.body.style.webkitBackdropFilter = 'none';
+            
+            // Запускаем проверку через 1.5 секунды
+            setTimeout(function() {
+                const loadingScreen = document.getElementById('loadingScreen');
+                const authScreen = document.getElementById('authScreen');
+                
+                // Если загрузочный экран все еще видим, показываем авторизацию
+                if (loadingScreen && !loadingScreen.classList.contains('hidden')) {
+                    console.log('Принудительно показываем экран авторизации');
+                    loadingScreen.classList.add('hidden');
+                    if (authScreen) {
+                        authScreen.classList.remove('hidden');
+                    }
+                }
+            }, 1500);
+        })();
+    </script>
+    
     <!-- Скрипты -->
     <script src="animations.js"></script>
     <script src="auth.js"></script>
