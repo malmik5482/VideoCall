@@ -1,4 +1,4 @@
-// ---- VideoChat Pro with Forced TURN for Russia ----
+// ---- VideoChat Pro with GUARANTEED TURN for Russia ----
 
 // Polyfills and compatibility
 if (!navigator.mediaDevices) navigator.mediaDevices = {};
@@ -15,7 +15,7 @@ const VIDEO_CONSTRAINTS = {
   hd: { 
     width: { ideal: 1280, min: 640 }, 
     height: { ideal: 720, min: 360 }, 
-    frameRate: { ideal: 24, max: 30 } // Conservative for mobile
+    frameRate: { ideal: 24, max: 30 }
   },
   fhd: { 
     width: { ideal: 1920, min: 1280 }, 
@@ -38,32 +38,40 @@ const AUDIO_CONSTRAINTS = {
   echoCancellation: true,
   noiseSuppression: true,
   autoGainControl: true,
-  sampleRate: 16000 // Reduced for mobile networks
+  sampleRate: 16000
 };
 
-// Russian network and mobile detection
+// Enhanced Russian network detection
 function detectEnvironment() {
-  return {
-    isRussian: navigator.language.startsWith('ru') || 
-               /ru|russia|moscow/i.test(navigator.language) ||
-               Intl.DateTimeFormat().resolvedOptions().timeZone.includes('Moscow'),
+  const lang = navigator.language || navigator.userLanguage || '';
+  const userAgent = navigator.userAgent || '';
+  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+  
+  // Multiple checks for Russian network
+  const isRussian = lang.startsWith('ru') || 
+                   /ru|russia|moscow|cyrillic/i.test(lang) ||
+                   timezone.includes('Moscow') || 
+                   timezone.includes('Europe/') && 
+                   ['Kaliningrad', 'Samara', 'Yekaterinburg', 'Omsk', 'Krasnoyarsk', 'Irkutsk', 'Yakutsk', 'Vladivostok', 'Magadan', 'Sakhalin', 'Kamchatka'].some(city => timezone.includes(city)) ||
+                   /yandex|mail\.ru|rambler|vk\.com/i.test(userAgent);
+  
+  const isMobile = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(userAgent);
+  
+  const connectionType = (() => {
+    if (!navigator.connection) return 'unknown';
+    const conn = navigator.connection;
+    const speed = conn.downlink || 0;
+    const type = conn.effectiveType || 'unknown';
     
-    isMobile: /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent),
-    
-    connectionType: (() => {
-      if (!navigator.connection) return 'unknown';
-      const conn = navigator.connection;
-      const speed = conn.downlink || 0;
-      const type = conn.effectiveType || 'unknown';
-      
-      if (type === '2g' || speed < 0.5) return 'poor';
-      if (type === '3g' || speed < 2) return 'medium';
-      return 'good';
-    })()
-  };
+    if (type === '2g' || speed < 0.5) return 'poor';
+    if (type === '3g' || speed < 2) return 'medium';
+    return 'good';
+  })();
+  
+  return { isRussian, isMobile, connectionType };
 }
 
-// Enhanced VideoCallApp with forced TURN for Russian users
+// VideoCallApp with GUARANTEED TURN for Russian users
 class VideoCallApp {
   constructor() {
     this.ws = null;
@@ -92,9 +100,19 @@ class VideoCallApp {
     this.turnForced = false;
     this.russianOptimizations = false;
     
-    // Detect environment
+    // Detect environment FIRST
     this.environment = detectEnvironment();
-    console.log('🌍 Environment:', this.environment);
+    
+    // FORCE TURN for Russian users immediately
+    if (this.environment.isRussian) {
+      this.turnForced = true;
+      this.russianOptimizations = true;
+      console.log('🇷🇺 RUSSIAN USER DETECTED - TURN WILL BE FORCED');
+    }
+    
+    console.log('🌍 Environment detected:', this.environment);
+    console.log('🔄 TURN forced:', this.turnForced);
+    console.log('🇷🇺 Russian optimizations:', this.russianOptimizations);
     
     // Auto-adjust quality for mobile/poor connections
     if (this.environment.isMobile || this.environment.connectionType === 'poor') {
@@ -114,7 +132,7 @@ class VideoCallApp {
       await this.enumerateDevices();
       
       if (this.environment.isRussian) {
-        this.showToast('info', '🇷🇺 Обнаружена российская сеть - включены оптимизации');
+        this.showToast('success', '🇷🇺 Российские оптимизации включены - TURN принудительно активен');
       }
       
       setTimeout(() => this.hideLoading(), 1000);
@@ -259,27 +277,26 @@ class VideoCallApp {
       if (config && Array.isArray(config.iceServers)) {
         this.iceServers = config.iceServers;
         
-        // Check for Russian optimizations
-        this.russianOptimizations = config.russianOptimization || false;
-        this.turnForced = config.aggressiveTurn || false;
-        
         console.log(`📡 Loaded ${this.iceServers.length} ICE servers`);
-        console.log(`🇷🇺 Russian optimizations: ${this.russianOptimizations}`);
-        console.log(`🔄 TURN forced: ${this.turnForced}`);
         
         // Log TURN server info
         const turnServers = this.iceServers.filter(server => 
-          server.urls && server.urls.some && server.urls.some(url => url.includes('turn:'))
+          server.urls && (
+            (typeof server.urls === 'string' && server.urls.includes('turn:')) ||
+            (Array.isArray(server.urls) && server.urls.some(url => url.includes('turn:')))
+          )
         );
         
-        if (turnServers.length > 0) {
-          console.log(`🔄 TURN servers available: ${turnServers.length}`);
-          turnServers.forEach((server, index) => {
-            if (server.urls.includes('94.198.218.189')) {
-              console.log(`🔄 Your TURN server detected: 94.198.218.189:3478`);
+        console.log(`🔄 TURN servers available: ${turnServers.length}`);
+        
+        turnServers.forEach((server, index) => {
+          const urls = Array.isArray(server.urls) ? server.urls : [server.urls];
+          urls.forEach(url => {
+            if (url.includes('94.198.218.189')) {
+              console.log(`🔄 Your TURN server detected: ${url}`);
             }
           });
-        }
+        });
       }
     } catch (error) {
       console.warn('Could not load ICE config:', error);
@@ -368,8 +385,8 @@ class VideoCallApp {
       
       this.updateConnectionStatus('ready', 'Готов к подключению');
       
-      if (this.russianOptimizations) {
-        this.showToast('success', '🇷🇺 TURN сервер подключен: 94.198.218.189');
+      if (this.turnForced) {
+        this.showToast('success', '🔄 TURN сервер активирован: 94.198.218.189');
       }
     } catch (error) {
       console.error('Preview media error:', error);
@@ -413,7 +430,7 @@ class VideoCallApp {
       this.elements.localVideo.srcObject = this.localStream;
       
       if (this.turnForced) {
-        this.showToast('info', `🔄 Подключение через TURN сервер...`);
+        this.showToast('info', `🔄 Подключение через TURN сервер (${room})`);
       } else {
         this.showToast('info', `Подключение к комнате ${room}...`);
       }
@@ -426,20 +443,25 @@ class VideoCallApp {
   }
 
   createPeerConnection() {
-    // Enhanced configuration for Russian networks with forced TURN
+    // Configuration with GUARANTEED TURN for Russian users
     const config = { 
       iceServers: this.iceServers,
-      iceCandidatePoolSize: 20, // More candidates for better NAT traversal
+      iceCandidatePoolSize: 20,
       rtcpMuxPolicy: 'require',
       bundlePolicy: 'max-bundle'
     };
     
-    // Force TURN usage for Russian networks
+    // GUARANTEED TURN enforcement for Russian users
     if (this.environment.isRussian || this.turnForced) {
-      config.iceTransportPolicy = 'relay'; // Force TURN usage!
-      console.log('🔄 Forcing TURN server usage for Russian network');
+      config.iceTransportPolicy = 'relay'; // ONLY TURN, no STUN allowed!
+      this.turnForced = true;
+      this.russianOptimizations = true;
+      console.log('🔄 GUARANTEED TURN enforced - iceTransportPolicy: relay');
+      console.log('🇷🇺 Russian optimizations: true');
+      console.log('🔄 TURN forced: true');
     } else {
-      config.iceTransportPolicy = 'all'; // Allow STUN and TURN
+      config.iceTransportPolicy = 'all';
+      console.log('📡 Standard policy - allowing STUN and TURN');
     }
     
     this.pc = new RTCPeerConnection(config);
@@ -451,12 +473,12 @@ class VideoCallApp {
       });
     }
 
-    // Enhanced encoding parameters for Russian mobile networks
+    // Enhanced encoding parameters
     setTimeout(() => {
       this.optimizePeerConnection();
     }, 100);
 
-    // Event handlers with TURN detection
+    // Event handlers with enhanced TURN monitoring
     this.pc.ontrack = async (event) => {
       this.remoteStream = event.streams[0];
       this.elements.remoteVideo.srcObject = this.remoteStream;
@@ -464,7 +486,7 @@ class VideoCallApp {
       this.startCallTimer();
       
       if (this.turnForced) {
-        this.showToast('success', '🔄 Соединение через TURN установлено');
+        this.showToast('success', '🔄 Соединение через TURN сервер установлено');
       } else {
         this.showToast('success', 'Соединение установлено');
       }
@@ -474,12 +496,19 @@ class VideoCallApp {
 
     this.pc.onicecandidate = (event) => {
       if (event.candidate) {
-        // Log TURN candidate usage
-        if (event.candidate.candidate && event.candidate.candidate.includes('relay')) {
-          console.log('🔄 TURN candidate generated:', event.candidate.candidate);
-          this.showToast('info', '🔄 Используется TURN сервер');
-        } else if (event.candidate.candidate && event.candidate.candidate.includes('srflx')) {
-          console.log('📡 STUN candidate generated:', event.candidate.candidate);
+        // Enhanced TURN candidate logging
+        if (event.candidate.candidate) {
+          if (event.candidate.candidate.includes('relay')) {
+            console.log('🔄 TURN candidate generated:', event.candidate.candidate);
+            if (event.candidate.candidate.includes('94.198.218.189')) {
+              console.log('🎯 YOUR TURN SERVER CANDIDATE GENERATED!');
+              this.showToast('success', '🔄 Ваш TURN сервер активен');
+            }
+          } else if (event.candidate.candidate.includes('srflx')) {
+            console.log('📡 STUN candidate generated (should not happen with relay-only)');
+          } else if (event.candidate.candidate.includes('host')) {
+            console.log('🏠 Host candidate generated (should not happen with relay-only)');
+          }
         }
         
         this.sendSignalMessage({ 
@@ -493,50 +522,49 @@ class VideoCallApp {
 
     this.pc.onconnectionstatechange = () => {
       const state = this.pc.connectionState;
-      console.log('Connection state:', state);
+      console.log(`Connection state: ${state}`);
       this.updateConnectionIndicator();
       
       if (state === 'failed') {
-        console.error('❌ Connection failed');
+        console.error('❌ Connection FAILED');
         this.connectionIssues++;
         this.handleConnectionFailure();
       } else if (state === 'disconnected') {
-        console.warn('⚠️ Connection disconnected');
+        console.warn('⚠️ Connection DISCONNECTED');
         this.showToast('warning', 'Соединение потеряно, восстановление...');
         this.scheduleReconnection();
       } else if (state === 'connected') {
-        console.log('✅ Connection established');
+        console.log('✅ Connection ESTABLISHED');
         this.reconnectAttempts = 0;
-        
-        // Check if connection is using TURN
         this.checkTurnUsage();
       }
     };
 
     this.pc.oniceconnectionstatechange = () => {
       const iceState = this.pc.iceConnectionState;
-      console.log('ICE state:', iceState);
+      console.log(`ICE connection state: ${iceState}`);
       
-      if (iceState === 'failed' && this.environment.isRussian) {
-        console.error('🧊 ICE failed - Russian network detected, suggesting reconnection');
-        this.sendSignalMessage({ type: 'connection-failed', reason: 'ice-failed-russia' });
+      if (iceState === 'failed') {
+        console.error('🧊❌ ICE CONNECTION FAILED - Restarting...');
+        this.sendSignalMessage({ type: 'connection-failed', reason: 'ice-failed' });
         
-        // More aggressive reconnection for Russian networks
+        // Immediate restart for failed ICE
         setTimeout(() => {
-          if (this.pc.iceConnectionState === 'failed') {
+          if (this.pc && this.pc.iceConnectionState === 'failed') {
+            console.log('🔄 Executing ICE restart...');
             this.pc.restartIce();
           }
-        }, 2000); // Faster restart
+        }, 500);
       } else if (iceState === 'disconnected') {
-        console.warn('🧊 ICE disconnected');
-        if (this.environment.isRussian || this.environment.isMobile) {
-          // Quick restart for mobile/Russian networks
-          setTimeout(() => {
-            if (this.pc.iceConnectionState === 'disconnected') {
-              this.pc.restartIce();
-            }
-          }, 3000);
-        }
+        console.warn('🧊⚠️ ICE DISCONNECTED - Scheduling restart...');
+        setTimeout(() => {
+          if (this.pc && this.pc.iceConnectionState === 'disconnected') {
+            console.log('🔄 ICE restart after disconnect...');
+            this.pc.restartIce();
+          }
+        }, 2000);
+      } else if (iceState === 'connected') {
+        console.log('🧊✅ ICE CONNECTED');
       }
     };
   }
@@ -556,8 +584,8 @@ class VideoCallApp {
               if (candidateReport.id === report.remoteCandidateId && 
                   candidateReport.candidateType === 'relay') {
                 usingTurn = true;
-                turnServerUsed = candidateReport.ip || 'unknown';
-                console.log('🔄 Connection established via TURN server:', turnServerUsed);
+                turnServerUsed = candidateReport.ip || candidateReport.address || 'unknown';
+                console.log('🔄✅ Connection established via TURN server:', turnServerUsed);
               }
             });
           }
@@ -566,10 +594,14 @@ class VideoCallApp {
       
       if (usingTurn) {
         if (turnServerUsed && turnServerUsed.includes('94.198.218.189')) {
-          this.showToast('success', '🔄 Подключено через ваш TURN сервер');
+          this.showToast('success', '🎯 Подключено через ВАШ TURN сервер!');
         } else {
           this.showToast('info', '🔄 Подключено через TURN сервер');
         }
+      } else if (this.turnForced) {
+        console.warn('⚠️ TURN was forced but connection not using TURN - checking...');
+        // Re-check in case stats are not ready yet
+        setTimeout(() => this.checkTurnUsage(), 2000);
       } else {
         console.log('📡 Direct connection established (no TURN needed)');
       }
@@ -588,7 +620,7 @@ class VideoCallApp {
       if (!params.encodings) params.encodings = [{}];
       
       if (sender.track.kind === 'video') {
-        // Conservative bitrates for Russian mobile networks
+        // Conservative bitrates for Russian networks
         let maxBitrate;
         if (this.environment.isMobile || this.environment.connectionType === 'poor') {
           maxBitrate = 300000; // 300 kbps for mobile/poor
@@ -608,7 +640,6 @@ class VideoCallApp {
         
         console.log(`📹 Video bitrate: ${maxBitrate} bps (${this.environment.connectionType} connection)`);
       } else if (sender.track.kind === 'audio') {
-        // Conservative audio for mobile/Russian networks
         const audioBitrate = this.environment.isMobile ? 32000 : 64000;
         params.encodings[0].maxBitrate = audioBitrate;
         console.log(`🎤 Audio bitrate: ${audioBitrate} bps`);
@@ -704,10 +735,10 @@ class VideoCallApp {
         console.log('Assigned role:', this.role);
         
         if (message.turnServerAvailable) {
-          console.log('🔄 TURN server confirmed available');
+          console.log('🔄 TURN server confirmed by server');
         }
         if (message.russianOptimization) {
-          console.log('🇷🇺 Russian optimization enabled');
+          console.log('🇷🇺 Russian optimization confirmed by server');
         }
         break;
         
@@ -717,8 +748,7 @@ class VideoCallApp {
         }
         
         if (message.turnServerRecommended && this.environment.isRussian) {
-          console.log('🔄 TURN server recommended for Russian network');
-          this.showToast('info', '🔄 Рекомендован TURN сервер для стабильности');
+          console.log('🔄 TURN server recommended by server');
         }
         break;
         
@@ -756,7 +786,7 @@ class VideoCallApp {
         
         if (message.recommendations) {
           message.recommendations.forEach(rec => {
-            console.log(`🇷🇺 ${rec}`);
+            console.log(`🇷🇺 Server recommendation: ${rec}`);
           });
         }
         
@@ -768,7 +798,6 @@ class VideoCallApp {
       case 'turn-suggestion':
         this.showToast('warning', message.message);
         if (message.forceTurn) {
-          console.log('🔄 Server suggests forcing TURN usage');
           this.turnForced = true;
         }
         break;
@@ -776,10 +805,6 @@ class VideoCallApp {
       case 'pong':
         const latency = Date.now() - this.lastPingTime;
         console.log(`🏓 Latency: ${latency}ms`);
-        
-        if (message.turnServerStatus) {
-          console.log(`🔄 TURN status: ${message.turnServerStatus}`);
-        }
         break;
         
       default:
@@ -836,10 +861,13 @@ class VideoCallApp {
     try {
       await this.pc.addIceCandidate(candidate);
       
-      // Log candidate type
+      // Enhanced candidate logging
       if (candidate.candidate) {
         if (candidate.candidate.includes('relay')) {
           console.log('🔄 TURN candidate added:', candidate.candidate);
+          if (candidate.candidate.includes('94.198.218.189')) {
+            console.log('🎯 YOUR TURN SERVER CANDIDATE ADDED!');
+          }
         } else if (candidate.candidate.includes('srflx')) {
           console.log('📡 STUN candidate added');
         } else if (candidate.candidate.includes('host')) {
@@ -864,25 +892,26 @@ class VideoCallApp {
   handleConnectionFailure() {
     this.connectionIssues++;
     
+    console.error(`🚨 Connection failure #${this.connectionIssues}`);
+    
     if (this.connectionIssues > 3) {
-      this.showToast('error', 'Множественные проблемы соединения. Рекомендуется переподключение.');
+      this.showToast('error', 'Множественные сбои соединения. Переподключитесь.');
       return;
     }
     
-    console.log('🔄 Connection failure, attempting recovery...');
-    
-    // For Russian networks, try forcing TURN if not already forced
+    // For Russian networks, ensure TURN is forced
     if (this.environment.isRussian && !this.turnForced) {
-      console.log('🇷🇺 Enabling forced TURN for Russian network');
+      console.log('🇷🇺 Enabling forced TURN due to connection failure');
       this.turnForced = true;
-      this.showToast('info', '🔄 Включено принудительное использование TURN');
     }
     
     if (this.pc && this.pc.connectionState === 'failed') {
+      console.log('🔄 Attempting ICE restart...');
       this.pc.restartIce();
       
       setTimeout(() => {
         if (this.pc && this.pc.connectionState === 'failed') {
+          console.log('🔄 ICE restart failed, scheduling reconnection...');
           this.scheduleReconnection();
         }
       }, 3000);
@@ -895,7 +924,7 @@ class VideoCallApp {
       return;
     }
     
-    const delay = 2000 * Math.pow(1.5, this.reconnectAttempts); // Exponential backoff
+    const delay = 2000 * Math.pow(1.5, this.reconnectAttempts);
     this.reconnectAttempts++;
     
     console.log(`🔄 Reconnection attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts} in ${delay}ms`);
@@ -912,7 +941,7 @@ class VideoCallApp {
           // Force TURN for reconnection attempts on Russian networks
           if (this.environment.isRussian) {
             this.turnForced = true;
-            console.log('🇷🇺 Forcing TURN for reconnection on Russian network');
+            console.log('🇷🇺 TURN forced for reconnection attempt');
           }
           
           // Recreate connection
@@ -942,9 +971,9 @@ class VideoCallApp {
         return 'good';
       })();
       
+      console.log(`🌐 Connection quality: ${oldConnectionType} → ${this.environment.connectionType}`);
+      
       if (oldConnectionType !== this.environment.connectionType) {
-        console.log(`🌐 Connection quality: ${oldConnectionType} → ${this.environment.connectionType}`);
-        
         // Auto-adjust settings
         if (this.environment.connectionType === 'poor' && this.settings.videoQuality !== 'mobile') {
           this.settings.videoQuality = 'mobile';
@@ -976,7 +1005,7 @@ class VideoCallApp {
     this.showToast('error', 'Нет соединения с интернетом');
   }
 
-  // Media controls (keeping existing methods but with Russian network optimizations)
+  // Media controls
   toggleVideo() {
     this.settings.videoEnabled = !this.settings.videoEnabled;
     
@@ -1012,7 +1041,6 @@ class VideoCallApp {
   async toggleScreenShare() {
     try {
       if (!this.isScreenSharing) {
-        // Conservative screen share settings for Russian/mobile networks
         const screenShareConstraints = {
           video: { 
             mediaSource: 'screen',
@@ -1142,9 +1170,8 @@ class VideoCallApp {
     let quality = 0;
     
     if (state === 'connected') {
-      // Show full bars for TURN connections
       if (this.turnForced) {
-        quality = 4;
+        quality = 4; // Show full bars for TURN connections
       } else {
         quality = this.environment.connectionType === 'good' ? 4 : 
                  this.environment.connectionType === 'medium' ? 3 : 2;
@@ -1231,9 +1258,8 @@ class VideoCallApp {
     this.elements[`${panelName}Panel`].classList.remove('open');
   }
 
-  // Settings with Russian network optimization
+  // Settings
   changeVideoQuality(quality) {
-    // Override quality for poor connections
     if (this.environment.connectionType === 'poor' && quality !== 'mobile') {
       this.showToast('warning', 'Качество ограничено из-за слабой сети');
       quality = 'mobile';
@@ -1336,7 +1362,7 @@ class VideoCallApp {
     }
   }
 
-  // History with TURN usage information
+  // History
   async loadHistory() {
     try {
       const response = await fetch('/history');
@@ -1366,19 +1392,20 @@ class VideoCallApp {
           <p>Длительность: ${duration}</p>
           <p>Участников: ${item.participantsMax}</p>
           ${item.messages ? `<p>Сообщений: ${item.messages}</p>` : ''}
-          ${item.turnUsed ? `<p>TURN сервер: Использован</p>` : ''}
+          ${item.turnUsed ? `<p>TURN сервер: Использован ✅</p>` : ''}
         `;
         
         this.elements.historyList.appendChild(itemElement);
       });
       
-      // Show TURN usage statistics if available
+      // Show TURN usage statistics
       if (data.analytics && data.analytics.turnUsagePercent !== undefined) {
         const statsElement = document.createElement('div');
         statsElement.className = 'history-stats';
         statsElement.innerHTML = `
           <h5>📊 Статистика TURN сервера</h5>
           <p>Использование: ${data.analytics.turnUsagePercent}% звонков</p>
+          <p>Сервер: 94.198.218.189:3478</p>
         `;
         this.elements.historyList.insertBefore(statsElement, this.elements.historyList.firstChild);
       }
@@ -1424,11 +1451,10 @@ class VideoCallApp {
         if (this.pc) this.toggleScreenShare();
         break;
       case 'f':
-        if (this.pc && event.ctrlKey) {
+        if (event.ctrlKey) {
           event.preventDefault();
-          // Toggle forced TURN
           this.turnForced = !this.turnForced;
-          this.showToast('info', `TURN ${this.turnForced ? 'включен' : 'выключен'} принудительно`);
+          this.showToast('info', `TURN ${this.turnForced ? 'принудительно включен' : 'отключен'}`);
         }
         break;
       case 'escape':
@@ -1451,19 +1477,17 @@ class VideoCallApp {
 
   handleVisibilityChange() {
     if (document.hidden && this.pc) {
-      // Reduce quality when tab hidden
       this.pc.getSenders().forEach(sender => {
         if (sender.track?.kind === 'video') {
           const params = sender.getParameters();
           if (params.encodings) {
-            params.encodings[0].maxBitrate = 100000; // Very low
+            params.encodings[0].maxBitrate = 100000;
             params.encodings[0].maxFramerate = 5;
             sender.setParameters(params).catch(console.warn);
           }
         }
       });
     } else if (!document.hidden && this.pc) {
-      // Restore quality when visible
       setTimeout(() => {
         this.optimizePeerConnection();
       }, 1000);
@@ -1516,6 +1540,8 @@ class VideoCallApp {
   }
 
   cleanup() {
+    console.log('🧹 Cleaning up connection...');
+    
     // Stop call timer
     this.stopCallTimer();
     
@@ -1571,24 +1597,25 @@ class VideoCallApp {
 
 // Initialize app when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
+  console.log('🎯 Initializing VideoChat Pro for Russian networks...');
   window.videoCallApp = new VideoCallApp();
 });
 
-// Russian network specific event handlers
+// Enhanced event handlers for Russian networks
 window.addEventListener('online', () => {
   if (window.videoCallApp) {
-    console.log('🌐 Network online');
-    window.videoCallApp.showToast('success', 'Интернет подключен');
+    console.log('🌐 Network restored');
+    window.videoCallApp.showToast('success', '🌐 Интернет подключен');
   }
 });
 
 window.addEventListener('offline', () => {
   if (window.videoCallApp) {
-    console.log('🌐 Network offline');
-    window.videoCallApp.showToast('error', 'Потеряно соединение с интернетом');
+    console.log('🌐 Network lost');
+    window.videoCallApp.showToast('error', '🌐 Потеряно соединение с интернетом');
   }
 });
 
-// Log environment info for debugging
-console.log('🎥🇷🇺 VideoChat Pro initialized for Russian networks');
-console.log('📱 Environment detection complete');
+// Final initialization log
+console.log('🎥🇷🇺 VideoChat Pro with GUARANTEED TURN for Russian networks initialized');
+console.log('🔄 TURN server: 94.198.218.189:3478 (webrtc/pRr45XBJgdff9Z2Q4EdTLwOUyqudQjtN)');
