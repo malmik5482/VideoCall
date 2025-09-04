@@ -1,4 +1,4 @@
-// ---- Enhanced VideoChat Pro Application ----
+// ---- VideoChat Pro with Forced TURN for Russia ----
 
 // Polyfills and compatibility
 if (!navigator.mediaDevices) navigator.mediaDevices = {};
@@ -10,21 +10,60 @@ if (!navigator.mediaDevices.getUserMedia) {
   };
 }
 
-// Enhanced video constraints
+// Optimized constraints for Russian mobile networks
 const VIDEO_CONSTRAINTS = {
-  hd: { width: { ideal: 1280, min: 640 }, height: { ideal: 720, min: 360 }, frameRate: { ideal: 30, max: 60 } },
-  fhd: { width: { ideal: 1920, min: 1280 }, height: { ideal: 1080, min: 720 }, frameRate: { ideal: 30, max: 60 } },
-  lite: { width: { ideal: 640, min: 320 }, height: { ideal: 480, min: 240 }, frameRate: { ideal: 24, max: 30 } }
+  hd: { 
+    width: { ideal: 1280, min: 640 }, 
+    height: { ideal: 720, min: 360 }, 
+    frameRate: { ideal: 24, max: 30 } // Conservative for mobile
+  },
+  fhd: { 
+    width: { ideal: 1920, min: 1280 }, 
+    height: { ideal: 1080, min: 720 }, 
+    frameRate: { ideal: 24, max: 30 } 
+  },
+  lite: { 
+    width: { ideal: 640, min: 480 }, 
+    height: { ideal: 480, min: 360 }, 
+    frameRate: { ideal: 20, max: 24 } 
+  },
+  mobile: {
+    width: { ideal: 480, min: 320 },
+    height: { ideal: 360, min: 240 },
+    frameRate: { ideal: 15, max: 20 }
+  }
 };
 
 const AUDIO_CONSTRAINTS = {
   echoCancellation: true,
   noiseSuppression: true,
   autoGainControl: true,
-  sampleRate: 48000
+  sampleRate: 16000 // Reduced for mobile networks
 };
 
-// Application state
+// Russian network and mobile detection
+function detectEnvironment() {
+  return {
+    isRussian: navigator.language.startsWith('ru') || 
+               /ru|russia|moscow/i.test(navigator.language) ||
+               Intl.DateTimeFormat().resolvedOptions().timeZone.includes('Moscow'),
+    
+    isMobile: /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent),
+    
+    connectionType: (() => {
+      if (!navigator.connection) return 'unknown';
+      const conn = navigator.connection;
+      const speed = conn.downlink || 0;
+      const type = conn.effectiveType || 'unknown';
+      
+      if (type === '2g' || speed < 0.5) return 'poor';
+      if (type === '3g' || speed < 2) return 'medium';
+      return 'good';
+    })()
+  };
+}
+
+// Enhanced VideoCallApp with forced TURN for Russian users
 class VideoCallApp {
   constructor() {
     this.ws = null;
@@ -35,7 +74,7 @@ class VideoCallApp {
     this.currentRoom = null;
     this.callStartTime = null;
     this.callDurationInterval = null;
-    this.iceServers = [{ urls: 'stun:stun.l.google.com:19302' }];
+    this.iceServers = [];
     this.deviceCache = { video: [], audio: [], audioOutput: [] };
     this.settings = {
       videoQuality: 'hd',
@@ -47,18 +86,45 @@ class VideoCallApp {
     };
     this.chatMessages = [];
     this.isScreenSharing = false;
-
+    this.reconnectAttempts = 0;
+    this.maxReconnectAttempts = 5;
+    this.connectionIssues = 0;
+    this.turnForced = false;
+    this.russianOptimizations = false;
+    
+    // Detect environment
+    this.environment = detectEnvironment();
+    console.log('🌍 Environment:', this.environment);
+    
+    // Auto-adjust quality for mobile/poor connections
+    if (this.environment.isMobile || this.environment.connectionType === 'poor') {
+      this.settings.videoQuality = 'mobile';
+    } else if (this.environment.connectionType === 'medium') {
+      this.settings.videoQuality = 'lite';
+    }
+    
     this.initializeElements();
     this.attachEventListeners();
-    this.loadConfig();
-    this.enumerateDevices();
-    
-    // Show app after initialization
-    setTimeout(() => this.hideLoading(), 1000);
+    this.initializeApp();
+  }
+
+  async initializeApp() {
+    try {
+      await this.loadConfig();
+      await this.enumerateDevices();
+      
+      if (this.environment.isRussian) {
+        this.showToast('info', '🇷🇺 Обнаружена российская сеть - включены оптимизации');
+      }
+      
+      setTimeout(() => this.hideLoading(), 1000);
+    } catch (error) {
+      console.error('App initialization error:', error);
+      this.hideLoading();
+    }
   }
 
   initializeElements() {
-    // Main elements
     this.elements = {
       // Screens
       loadingScreen: document.getElementById('loadingScreen'),
@@ -172,19 +238,64 @@ class VideoCallApp {
     window.addEventListener('beforeunload', () => this.cleanup());
     window.addEventListener('resize', () => this.handleResize());
     
-    // Visibility change for call optimization
+    // Network change detection
+    if ('connection' in navigator) {
+      navigator.connection.addEventListener('change', () => this.handleNetworkChange());
+    }
+    
+    // Visibility change for optimization
     document.addEventListener('visibilitychange', () => this.handleVisibilityChange());
+    
+    // Online/offline events
+    window.addEventListener('online', () => this.handleOnline());
+    window.addEventListener('offline', () => this.handleOffline());
   }
 
   async loadConfig() {
     try {
       const response = await fetch('/config');
       const config = await response.json();
+      
       if (config && Array.isArray(config.iceServers)) {
         this.iceServers = config.iceServers;
+        
+        // Check for Russian optimizations
+        this.russianOptimizations = config.russianOptimization || false;
+        this.turnForced = config.aggressiveTurn || false;
+        
+        console.log(`📡 Loaded ${this.iceServers.length} ICE servers`);
+        console.log(`🇷🇺 Russian optimizations: ${this.russianOptimizations}`);
+        console.log(`🔄 TURN forced: ${this.turnForced}`);
+        
+        // Log TURN server info
+        const turnServers = this.iceServers.filter(server => 
+          server.urls && server.urls.some && server.urls.some(url => url.includes('turn:'))
+        );
+        
+        if (turnServers.length > 0) {
+          console.log(`🔄 TURN servers available: ${turnServers.length}`);
+          turnServers.forEach((server, index) => {
+            if (server.urls.includes('94.198.218.189')) {
+              console.log(`🔄 Your TURN server detected: 94.198.218.189:3478`);
+            }
+          });
+        }
       }
     } catch (error) {
       console.warn('Could not load ICE config:', error);
+      // Fallback with your TURN server
+      this.iceServers = [
+        {
+          urls: [
+            'turn:94.198.218.189:3478?transport=udp',
+            'turn:94.198.218.189:3478?transport=tcp'
+          ],
+          username: 'webrtc',
+          credential: 'pRr45XBJgdff9Z2Q4EdTLwOUyqudQjtN'
+        },
+        { urls: 'stun:stun.voipbuster.com:3478' },
+        { urls: 'stun:stun.l.google.com:19302' }
+      ];
     }
   }
 
@@ -255,8 +366,11 @@ class VideoCallApp {
       this.elements.previewVideo.srcObject = stream;
       this.localStream = stream;
       
-      // Update connection status
       this.updateConnectionStatus('ready', 'Готов к подключению');
+      
+      if (this.russianOptimizations) {
+        this.showToast('success', '🇷🇺 TURN сервер подключен: 94.198.218.189');
+      }
     } catch (error) {
       console.error('Preview media error:', error);
       this.showToast('error', 'Не удалось получить доступ к камере/микрофону');
@@ -298,7 +412,11 @@ class VideoCallApp {
       this.elements.callScreen.classList.remove('hidden');
       this.elements.localVideo.srcObject = this.localStream;
       
-      this.showToast('info', `Подключение к комнате ${room}...`);
+      if (this.turnForced) {
+        this.showToast('info', `🔄 Подключение через TURN сервер...`);
+      } else {
+        this.showToast('info', `Подключение к комнате ${room}...`);
+      }
       
     } catch (error) {
       console.error('Join room error:', error);
@@ -308,10 +426,23 @@ class VideoCallApp {
   }
 
   createPeerConnection() {
-    this.pc = new RTCPeerConnection({ 
+    // Enhanced configuration for Russian networks with forced TURN
+    const config = { 
       iceServers: this.iceServers,
-      iceCandidatePoolSize: 10
-    });
+      iceCandidatePoolSize: 20, // More candidates for better NAT traversal
+      rtcpMuxPolicy: 'require',
+      bundlePolicy: 'max-bundle'
+    };
+    
+    // Force TURN usage for Russian networks
+    if (this.environment.isRussian || this.turnForced) {
+      config.iceTransportPolicy = 'relay'; // Force TURN usage!
+      console.log('🔄 Forcing TURN server usage for Russian network');
+    } else {
+      config.iceTransportPolicy = 'all'; // Allow STUN and TURN
+    }
+    
+    this.pc = new RTCPeerConnection(config);
 
     // Add local stream tracks
     if (this.localStream) {
@@ -320,41 +451,131 @@ class VideoCallApp {
       });
     }
 
-    // Enhanced encoding parameters
+    // Enhanced encoding parameters for Russian mobile networks
     setTimeout(() => {
       this.optimizePeerConnection();
     }, 100);
 
-    // Event handlers
-    this.pc.ontrack = (event) => {
+    // Event handlers with TURN detection
+    this.pc.ontrack = async (event) => {
       this.remoteStream = event.streams[0];
       this.elements.remoteVideo.srcObject = this.remoteStream;
       this.updateConnectionStatus('connected', 'Подключен');
       this.startCallTimer();
-      this.showToast('success', 'Соединение установлено');
+      
+      if (this.turnForced) {
+        this.showToast('success', '🔄 Соединение через TURN установлено');
+      } else {
+        this.showToast('success', 'Соединение установлено');
+      }
+      
+      this.connectionIssues = 0;
     };
 
     this.pc.onicecandidate = (event) => {
       if (event.candidate) {
-        this.sendSignalMessage({ type: 'candidate', candidate: event.candidate });
+        // Log TURN candidate usage
+        if (event.candidate.candidate && event.candidate.candidate.includes('relay')) {
+          console.log('🔄 TURN candidate generated:', event.candidate.candidate);
+          this.showToast('info', '🔄 Используется TURN сервер');
+        } else if (event.candidate.candidate && event.candidate.candidate.includes('srflx')) {
+          console.log('📡 STUN candidate generated:', event.candidate.candidate);
+        }
+        
+        this.sendSignalMessage({ 
+          type: 'candidate', 
+          candidate: event.candidate 
+        });
+      } else {
+        console.log('🧊 ICE gathering complete');
       }
     };
 
     this.pc.onconnectionstatechange = () => {
-      console.log('Connection state:', this.pc.connectionState);
+      const state = this.pc.connectionState;
+      console.log('Connection state:', state);
       this.updateConnectionIndicator();
       
-      if (this.pc.connectionState === 'failed') {
-        this.pc.restartIce();
-        this.showToast('warning', 'Переподключение...');
-      } else if (this.pc.connectionState === 'disconnected') {
-        this.showToast('warning', 'Соединение потеряно');
+      if (state === 'failed') {
+        console.error('❌ Connection failed');
+        this.connectionIssues++;
+        this.handleConnectionFailure();
+      } else if (state === 'disconnected') {
+        console.warn('⚠️ Connection disconnected');
+        this.showToast('warning', 'Соединение потеряно, восстановление...');
+        this.scheduleReconnection();
+      } else if (state === 'connected') {
+        console.log('✅ Connection established');
+        this.reconnectAttempts = 0;
+        
+        // Check if connection is using TURN
+        this.checkTurnUsage();
       }
     };
 
     this.pc.oniceconnectionstatechange = () => {
-      console.log('ICE state:', this.pc.iceConnectionState);
+      const iceState = this.pc.iceConnectionState;
+      console.log('ICE state:', iceState);
+      
+      if (iceState === 'failed' && this.environment.isRussian) {
+        console.error('🧊 ICE failed - Russian network detected, suggesting reconnection');
+        this.sendSignalMessage({ type: 'connection-failed', reason: 'ice-failed-russia' });
+        
+        // More aggressive reconnection for Russian networks
+        setTimeout(() => {
+          if (this.pc.iceConnectionState === 'failed') {
+            this.pc.restartIce();
+          }
+        }, 2000); // Faster restart
+      } else if (iceState === 'disconnected') {
+        console.warn('🧊 ICE disconnected');
+        if (this.environment.isRussian || this.environment.isMobile) {
+          // Quick restart for mobile/Russian networks
+          setTimeout(() => {
+            if (this.pc.iceConnectionState === 'disconnected') {
+              this.pc.restartIce();
+            }
+          }, 3000);
+        }
+      }
     };
+  }
+
+  async checkTurnUsage() {
+    if (!this.pc) return;
+    
+    try {
+      const stats = await this.pc.getStats();
+      let usingTurn = false;
+      let turnServerUsed = null;
+      
+      stats.forEach(report => {
+        if (report.type === 'candidate-pair' && report.state === 'succeeded') {
+          if (report.remoteCandidateId) {
+            stats.forEach(candidateReport => {
+              if (candidateReport.id === report.remoteCandidateId && 
+                  candidateReport.candidateType === 'relay') {
+                usingTurn = true;
+                turnServerUsed = candidateReport.ip || 'unknown';
+                console.log('🔄 Connection established via TURN server:', turnServerUsed);
+              }
+            });
+          }
+        }
+      });
+      
+      if (usingTurn) {
+        if (turnServerUsed && turnServerUsed.includes('94.198.218.189')) {
+          this.showToast('success', '🔄 Подключено через ваш TURN сервер');
+        } else {
+          this.showToast('info', '🔄 Подключено через TURN сервер');
+        }
+      } else {
+        console.log('📡 Direct connection established (no TURN needed)');
+      }
+    } catch (error) {
+      console.warn('Error checking TURN usage:', error);
+    }
   }
 
   optimizePeerConnection() {
@@ -367,19 +588,38 @@ class VideoCallApp {
       if (!params.encodings) params.encodings = [{}];
       
       if (sender.track.kind === 'video') {
-        const bitrates = { hd: 2500000, fhd: 4000000, lite: 800000 };
-        params.encodings[0].maxBitrate = bitrates[this.settings.videoQuality];
+        // Conservative bitrates for Russian mobile networks
+        let maxBitrate;
+        if (this.environment.isMobile || this.environment.connectionType === 'poor') {
+          maxBitrate = 300000; // 300 kbps for mobile/poor
+        } else if (this.environment.connectionType === 'medium' || this.environment.isRussian) {
+          maxBitrate = 600000; // 600 kbps for medium/Russian
+        } else {
+          const bitrates = { hd: 1200000, fhd: 2000000, lite: 500000, mobile: 300000 };
+          maxBitrate = bitrates[this.settings.videoQuality];
+        }
+        
+        params.encodings[0].maxBitrate = maxBitrate;
+        params.encodings[0].maxFramerate = this.environment.isMobile ? 15 : 24;
+        
         if ('degradationPreference' in params) {
           params.degradationPreference = 'maintain-framerate';
         }
+        
+        console.log(`📹 Video bitrate: ${maxBitrate} bps (${this.environment.connectionType} connection)`);
       } else if (sender.track.kind === 'audio') {
-        params.encodings[0].maxBitrate = 128000;
+        // Conservative audio for mobile/Russian networks
+        const audioBitrate = this.environment.isMobile ? 32000 : 64000;
+        params.encodings[0].maxBitrate = audioBitrate;
+        console.log(`🎤 Audio bitrate: ${audioBitrate} bps`);
       }
       
-      sender.setParameters(params).catch(console.warn);
+      sender.setParameters(params).catch(err => {
+        console.warn('Error setting parameters:', err);
+      });
     });
 
-    // Codec preferences
+    // Codec preferences - prefer H.264 for Russian networks
     this.setCodecPreferences();
   }
 
@@ -392,11 +632,21 @@ class VideoCallApp {
         );
         
         if (transceiver && transceiver.setCodecPreferences) {
-          const preferredCodecs = capabilities.codecs.filter(codec =>
-            /VP9|H264/i.test(codec.mimeType) && !/rtx/i.test(codec.mimeType)
+          // Prefer H.264 for better mobile/Russian network compatibility
+          let preferredCodecs = capabilities.codecs.filter(codec =>
+            /H264/i.test(codec.mimeType) && !/rtx/i.test(codec.mimeType)
           );
-          if (preferredCodecs.length) {
+          
+          // Fallback to VP8 if H.264 not available
+          if (preferredCodecs.length === 0) {
+            preferredCodecs = capabilities.codecs.filter(codec =>
+              /VP8/i.test(codec.mimeType) && !/rtx/i.test(codec.mimeType)
+            );
+          }
+          
+          if (preferredCodecs.length > 0) {
             transceiver.setCodecPreferences(preferredCodecs);
+            console.log('📺 H.264 codec preferred for Russian networks');
           }
         }
       }
@@ -410,7 +660,16 @@ class VideoCallApp {
     this.ws = new WebSocket(`${protocol}://${location.host}/ws`);
     
     this.ws.onopen = () => {
-      this.sendSignalMessage({ type: 'join', room });
+      this.sendSignalMessage({ 
+        type: 'join', 
+        room,
+        userInfo: {
+          isRussian: this.environment.isRussian,
+          isMobile: this.environment.isMobile,
+          connectionType: this.environment.connectionType,
+          turnForced: this.turnForced
+        }
+      });
       this.updateConnectionStatus('connected', 'WebSocket подключен');
     };
     
@@ -425,12 +684,16 @@ class VideoCallApp {
     
     this.ws.onerror = (error) => {
       console.error('WebSocket error:', error);
-      this.showToast('error', 'Ошибка соединения');
+      this.showToast('error', 'Ошибка WebSocket соединения');
     };
     
-    this.ws.onclose = () => {
-      console.log('WebSocket closed');
-      this.updateConnectionStatus('disconnected', 'Соединение потеряно');
+    this.ws.onclose = (event) => {
+      console.log(`WebSocket closed: ${event.code} ${event.reason}`);
+      this.updateConnectionStatus('disconnected', 'WebSocket отключен');
+      
+      if (this.currentRoom && !event.wasClean) {
+        this.scheduleReconnection();
+      }
     };
   }
 
@@ -439,11 +702,23 @@ class VideoCallApp {
       case 'role':
         this.role = message.role;
         console.log('Assigned role:', this.role);
+        
+        if (message.turnServerAvailable) {
+          console.log('🔄 TURN server confirmed available');
+        }
+        if (message.russianOptimization) {
+          console.log('🇷🇺 Russian optimization enabled');
+        }
         break;
         
       case 'ready':
         if (this.role === 'caller') {
           await this.createOffer();
+        }
+        
+        if (message.turnServerRecommended && this.environment.isRussian) {
+          console.log('🔄 TURN server recommended for Russian network');
+          this.showToast('info', '🔄 Рекомендован TURN сервер для стабильности');
         }
         break;
         
@@ -472,6 +747,43 @@ class VideoCallApp {
       case 'bye':
         this.hangup();
         break;
+        
+      case 'russia-config':
+        if (message.turnServerForced) {
+          this.turnForced = true;
+          console.log('🔄 TURN server usage forced by server');
+        }
+        
+        if (message.recommendations) {
+          message.recommendations.forEach(rec => {
+            console.log(`🇷🇺 ${rec}`);
+          });
+        }
+        
+        if (message.turnServer) {
+          this.showToast('success', `🔄 TURN: ${message.turnServer}`);
+        }
+        break;
+        
+      case 'turn-suggestion':
+        this.showToast('warning', message.message);
+        if (message.forceTurn) {
+          console.log('🔄 Server suggests forcing TURN usage');
+          this.turnForced = true;
+        }
+        break;
+        
+      case 'pong':
+        const latency = Date.now() - this.lastPingTime;
+        console.log(`🏓 Latency: ${latency}ms`);
+        
+        if (message.turnServerStatus) {
+          console.log(`🔄 TURN status: ${message.turnServerStatus}`);
+        }
+        break;
+        
+      default:
+        console.log('Unknown message type:', message.type);
     }
   }
 
@@ -486,8 +798,10 @@ class VideoCallApp {
         type: 'description', 
         sdp: this.pc.localDescription 
       });
+      console.log('📞 Offer created and sent');
     } catch (error) {
       console.error('Create offer error:', error);
+      this.showToast('error', 'Ошибка создания предложения');
     }
   }
 
@@ -505,19 +819,33 @@ class VideoCallApp {
           type: 'description', 
           sdp: this.pc.localDescription 
         });
+        console.log('📞 Answer created and sent');
       } else if (description.type === 'answer') {
         if (this.pc.signalingState === 'have-local-offer') {
           await this.pc.setRemoteDescription(description);
+          console.log('📞 Answer received and set');
         }
       }
     } catch (error) {
       console.error('Handle description error:', error);
+      this.showToast('error', 'Ошибка обработки SDP');
     }
   }
 
   async handleCandidate(candidate) {
     try {
       await this.pc.addIceCandidate(candidate);
+      
+      // Log candidate type
+      if (candidate.candidate) {
+        if (candidate.candidate.includes('relay')) {
+          console.log('🔄 TURN candidate added:', candidate.candidate);
+        } else if (candidate.candidate.includes('srflx')) {
+          console.log('📡 STUN candidate added');
+        } else if (candidate.candidate.includes('host')) {
+          console.log('🏠 Host candidate added');
+        }
+      }
     } catch (error) {
       console.warn('Add ICE candidate error:', error);
     }
@@ -533,7 +861,122 @@ class VideoCallApp {
     }
   }
 
-  // Media controls
+  handleConnectionFailure() {
+    this.connectionIssues++;
+    
+    if (this.connectionIssues > 3) {
+      this.showToast('error', 'Множественные проблемы соединения. Рекомендуется переподключение.');
+      return;
+    }
+    
+    console.log('🔄 Connection failure, attempting recovery...');
+    
+    // For Russian networks, try forcing TURN if not already forced
+    if (this.environment.isRussian && !this.turnForced) {
+      console.log('🇷🇺 Enabling forced TURN for Russian network');
+      this.turnForced = true;
+      this.showToast('info', '🔄 Включено принудительное использование TURN');
+    }
+    
+    if (this.pc && this.pc.connectionState === 'failed') {
+      this.pc.restartIce();
+      
+      setTimeout(() => {
+        if (this.pc && this.pc.connectionState === 'failed') {
+          this.scheduleReconnection();
+        }
+      }, 3000);
+    }
+  }
+
+  scheduleReconnection() {
+    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+      this.showToast('error', 'Превышено максимальное количество попыток переподключения');
+      return;
+    }
+    
+    const delay = 2000 * Math.pow(1.5, this.reconnectAttempts); // Exponential backoff
+    this.reconnectAttempts++;
+    
+    console.log(`🔄 Reconnection attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts} in ${delay}ms`);
+    
+    setTimeout(async () => {
+      try {
+        if (this.currentRoom) {
+          this.showToast('info', `Переподключение ${this.reconnectAttempts}/${this.maxReconnectAttempts}...`);
+          
+          // Clean up current connection
+          if (this.pc) this.pc.close();
+          if (this.ws) this.ws.close();
+          
+          // Force TURN for reconnection attempts on Russian networks
+          if (this.environment.isRussian) {
+            this.turnForced = true;
+            console.log('🇷🇺 Forcing TURN for reconnection on Russian network');
+          }
+          
+          // Recreate connection
+          this.createPeerConnection();
+          this.connectWebSocket(this.currentRoom);
+        }
+      } catch (error) {
+        console.error('Reconnection error:', error);
+        this.scheduleReconnection();
+      }
+    }, delay);
+  }
+
+  handleNetworkChange() {
+    if ('connection' in navigator) {
+      const connection = navigator.connection;
+      const newType = connection.effectiveType;
+      
+      console.log(`📶 Network changed to: ${newType}`);
+      
+      // Update environment
+      const oldConnectionType = this.environment.connectionType;
+      this.environment.connectionType = (() => {
+        const speed = connection.downlink || 0;
+        if (newType === '2g' || speed < 0.5) return 'poor';
+        if (newType === '3g' || speed < 2) return 'medium';
+        return 'good';
+      })();
+      
+      if (oldConnectionType !== this.environment.connectionType) {
+        console.log(`🌐 Connection quality: ${oldConnectionType} → ${this.environment.connectionType}`);
+        
+        // Auto-adjust settings
+        if (this.environment.connectionType === 'poor' && this.settings.videoQuality !== 'mobile') {
+          this.settings.videoQuality = 'mobile';
+          this.showToast('warning', 'Качество снижено из-за слабой сети');
+          if (this.pc && this.localStream) {
+            this.restartVideoStream();
+          }
+        }
+        
+        // Re-optimize connection
+        if (this.pc && this.pc.connectionState === 'connected') {
+          this.optimizePeerConnection();
+        }
+      }
+    }
+  }
+
+  handleOnline() {
+    console.log('🌐 Network online');
+    this.showToast('success', 'Соединение восстановлено');
+    
+    if (this.currentRoom && (!this.ws || this.ws.readyState !== WebSocket.OPEN)) {
+      this.scheduleReconnection();
+    }
+  }
+
+  handleOffline() {
+    console.log('🌐 Network offline');
+    this.showToast('error', 'Нет соединения с интернетом');
+  }
+
+  // Media controls (keeping existing methods but with Russian network optimizations)
   toggleVideo() {
     this.settings.videoEnabled = !this.settings.videoEnabled;
     
@@ -569,10 +1012,18 @@ class VideoCallApp {
   async toggleScreenShare() {
     try {
       if (!this.isScreenSharing) {
-        const screenStream = await navigator.mediaDevices.getDisplayMedia({
-          video: { mediaSource: 'screen' },
+        // Conservative screen share settings for Russian/mobile networks
+        const screenShareConstraints = {
+          video: { 
+            mediaSource: 'screen',
+            width: { max: this.environment.isMobile ? 720 : 1280 },
+            height: { max: this.environment.isMobile ? 480 : 720 },
+            frameRate: { max: this.environment.isMobile ? 10 : 15 }
+          },
           audio: true
-        });
+        };
+        
+        const screenStream = await navigator.mediaDevices.getDisplayMedia(screenShareConstraints);
         
         const videoTrack = screenStream.getVideoTracks()[0];
         const sender = this.pc.getSenders().find(s => 
@@ -619,6 +1070,11 @@ class VideoCallApp {
   }
 
   async switchCamera() {
+    if (!this.environment.isMobile) {
+      this.showToast('info', 'Переключение камеры доступно на мобильных устройствах');
+      return;
+    }
+    
     try {
       const videoTrack = this.localStream.getVideoTracks()[0];
       if (!videoTrack) return;
@@ -644,7 +1100,6 @@ class VideoCallApp {
         await sender.replaceTrack(newVideoTrack);
       }
       
-      // Update local stream
       videoTrack.stop();
       this.localStream.removeTrack(videoTrack);
       this.localStream.addTrack(newVideoTrack);
@@ -682,6 +1137,25 @@ class VideoCallApp {
     
     const state = this.pc.connectionState;
     const indicator = this.elements.connectionIndicator;
+    const bars = indicator.querySelectorAll('.bar');
+    
+    let quality = 0;
+    
+    if (state === 'connected') {
+      // Show full bars for TURN connections
+      if (this.turnForced) {
+        quality = 4;
+      } else {
+        quality = this.environment.connectionType === 'good' ? 4 : 
+                 this.environment.connectionType === 'medium' ? 3 : 2;
+      }
+    }
+    
+    bars.forEach((bar, index) => {
+      bar.style.opacity = index < quality ? '1' : '0.3';
+      bar.style.backgroundColor = quality <= 1 ? '#f44336' : 
+                                 quality <= 2 ? '#ff9800' : '#4CAF50';
+    });
     
     indicator.className = `connection-indicator ${state}`;
   }
@@ -740,7 +1214,6 @@ class VideoCallApp {
 
   // Panel management
   openPanel(panelName) {
-    // Close other panels
     ['chat', 'settings', 'history'].forEach(panel => {
       if (panel !== panelName) {
         this.elements[`${panel}Panel`].classList.remove('open');
@@ -758,11 +1231,17 @@ class VideoCallApp {
     this.elements[`${panelName}Panel`].classList.remove('open');
   }
 
-  // Settings
+  // Settings with Russian network optimization
   changeVideoQuality(quality) {
+    // Override quality for poor connections
+    if (this.environment.connectionType === 'poor' && quality !== 'mobile') {
+      this.showToast('warning', 'Качество ограничено из-за слабой сети');
+      quality = 'mobile';
+    }
+    
     this.settings.videoQuality = quality;
     this.showToast('info', `Качество видео: ${quality.toUpperCase()}`);
-    // Restart video stream with new quality if in call
+    
     if (this.pc && this.localStream) {
       this.restartVideoStream();
     }
@@ -857,15 +1336,16 @@ class VideoCallApp {
     }
   }
 
-  // History
+  // History with TURN usage information
   async loadHistory() {
     try {
       const response = await fetch('/history');
-      const history = await response.json();
+      const data = await response.json();
+      const history = data.data || data;
       
       this.elements.historyList.innerHTML = '';
       
-      history.reverse().forEach(item => {
+      history.forEach(item => {
         const itemElement = document.createElement('div');
         itemElement.className = 'history-item';
         
@@ -875,16 +1355,33 @@ class VideoCallApp {
           `${Math.floor(item.durationSec / 60)}:${(item.durationSec % 60).toString().padStart(2, '0')}` : 
           '—';
         
+        const flags = [];
+        if (item.isRussian) flags.push('🇷🇺');
+        if (item.turnUsed) flags.push('🔄');
+        
         itemElement.innerHTML = `
-          <h5>Комната: ${item.room}</h5>
+          <h5>Комната: ${item.room} ${flags.join(' ')}</h5>
           <p>Начало: ${startTime}</p>
           <p>Окончание: ${endTime}</p>
           <p>Длительность: ${duration}</p>
           <p>Участников: ${item.participantsMax}</p>
+          ${item.messages ? `<p>Сообщений: ${item.messages}</p>` : ''}
+          ${item.turnUsed ? `<p>TURN сервер: Использован</p>` : ''}
         `;
         
         this.elements.historyList.appendChild(itemElement);
       });
+      
+      // Show TURN usage statistics if available
+      if (data.analytics && data.analytics.turnUsagePercent !== undefined) {
+        const statsElement = document.createElement('div');
+        statsElement.className = 'history-stats';
+        statsElement.innerHTML = `
+          <h5>📊 Статистика TURN сервера</h5>
+          <p>Использование: ${data.analytics.turnUsagePercent}% звонков</p>
+        `;
+        this.elements.historyList.insertBefore(statsElement, this.elements.historyList.firstChild);
+      }
     } catch (error) {
       console.error('Load history error:', error);
       this.showToast('error', 'Не удалось загрузить историю');
@@ -902,7 +1399,9 @@ class VideoCallApp {
     setTimeout(() => {
       toast.classList.add('removing');
       setTimeout(() => {
-        this.elements.toastContainer.removeChild(toast);
+        if (toast.parentNode) {
+          this.elements.toastContainer.removeChild(toast);
+        }
       }, 300);
     }, duration);
   }
@@ -924,6 +1423,14 @@ class VideoCallApp {
       case 's':
         if (this.pc) this.toggleScreenShare();
         break;
+      case 'f':
+        if (this.pc && event.ctrlKey) {
+          event.preventDefault();
+          // Toggle forced TURN
+          this.turnForced = !this.turnForced;
+          this.showToast('info', `TURN ${this.turnForced ? 'включен' : 'выключен'} принудительно`);
+        }
+        break;
       case 'escape':
         this.closePanel('chat');
         this.closePanel('settings');
@@ -932,28 +1439,31 @@ class VideoCallApp {
     }
   }
 
-  // Responsive and optimization
+  // Responsive optimization
   handleResize() {
-    // Optimize for mobile
-    if (window.innerWidth <= 768) {
-      // Mobile optimizations
+    if (window.innerWidth <= 768 && this.settings.videoQuality === 'fhd') {
+      this.settings.videoQuality = 'hd';
+      if (this.pc && this.localStream) {
+        this.restartVideoStream();
+      }
     }
   }
 
   handleVisibilityChange() {
     if (document.hidden && this.pc) {
-      // Reduce quality when tab is not visible
+      // Reduce quality when tab hidden
       this.pc.getSenders().forEach(sender => {
         if (sender.track?.kind === 'video') {
           const params = sender.getParameters();
           if (params.encodings) {
-            params.encodings[0].maxBitrate = 300000; // Low bitrate
+            params.encodings[0].maxBitrate = 100000; // Very low
+            params.encodings[0].maxFramerate = 5;
             sender.setParameters(params).catch(console.warn);
           }
         }
       });
     } else if (!document.hidden && this.pc) {
-      // Restore quality when tab becomes visible
+      // Restore quality when visible
       setTimeout(() => {
         this.optimizePeerConnection();
       }, 1000);
@@ -1009,13 +1519,12 @@ class VideoCallApp {
     // Stop call timer
     this.stopCallTimer();
     
-    // Close WebSocket
+    // Close connections
     if (this.ws) {
       this.ws.close();
       this.ws = null;
     }
     
-    // Close peer connection
     if (this.pc) {
       this.pc.close();
       this.pc = null;
@@ -1038,6 +1547,8 @@ class VideoCallApp {
     this.currentRoom = null;
     this.callStartTime = null;
     this.isScreenSharing = false;
+    this.reconnectAttempts = 0;
+    this.connectionIssues = 0;
     
     // Clear chat
     this.elements.chatMessages.innerHTML = '';
@@ -1063,15 +1574,21 @@ document.addEventListener('DOMContentLoaded', () => {
   window.videoCallApp = new VideoCallApp();
 });
 
-// Handle connection errors and retry logic
+// Russian network specific event handlers
 window.addEventListener('online', () => {
   if (window.videoCallApp) {
-    window.videoCallApp.showToast('success', 'Соединение восстановлено');
+    console.log('🌐 Network online');
+    window.videoCallApp.showToast('success', 'Интернет подключен');
   }
 });
 
 window.addEventListener('offline', () => {
   if (window.videoCallApp) {
-    window.videoCallApp.showToast('warning', 'Соединение потеряно');
+    console.log('🌐 Network offline');
+    window.videoCallApp.showToast('error', 'Потеряно соединение с интернетом');
   }
 });
+
+// Log environment info for debugging
+console.log('🎥🇷🇺 VideoChat Pro initialized for Russian networks');
+console.log('📱 Environment detection complete');
