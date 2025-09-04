@@ -8,7 +8,7 @@ const app = express();
 const server = http.createServer(app);
 
 // Настройки из переменных окружения или дефолтные
-const PORT = process.env.PORT || 3002;
+const PORT = process.env.PORT || 3000;
 const HOST = '0.0.0.0';
 const NODE_ENV = process.env.NODE_ENV || 'development';
 
@@ -29,6 +29,16 @@ const wss = new WebSocket.Server({
 const users = new Map(); // userId -> userData
 const rooms = new Map(); // roomId -> Set of ws connections
 const connections = new Map(); // ws -> connectionData
+
+// Вспомогательная функция для рассылки всем подключенным клиентам
+function broadcast(message, excludeWs = null) {
+  const messageStr = JSON.stringify(message);
+  wss.clients.forEach(client => {
+    if (client.readyState === WebSocket.OPEN && client !== excludeWs) {
+      client.send(messageStr);
+    }
+  });
+}
 
 // Обработка WebSocket соединений
 wss.on('connection', (ws, req) => {
@@ -94,6 +104,10 @@ function handleMessage(ws, data) {
       handleRegister(ws, data);
       break;
       
+    case 'get-users':
+      handleGetUsers(ws);
+      break;
+      
     case 'login':
       handleLogin(ws, data);
       break;
@@ -114,22 +128,37 @@ function handleMessage(ws, data) {
       handleChatMessage(ws, data);
       break;
       
+    case 'webrtc-offer':
+    case 'webrtc-answer':
+    case 'webrtc-ice':
     case 'offer':
     case 'answer':
     case 'ice_candidate':
+    case 'ice-candidate':
       handleWebRTCSignaling(ws, data);
       break;
       
+    case 'call-offer':
     case 'call_request':
       handleCallRequest(ws, data);
       break;
       
+    case 'call-accepted':
     case 'call_response':
       handleCallResponse(ws, data);
       break;
       
+    case 'call-rejected':
+      handleCallRejected(ws, data);
+      break;
+      
+    case 'call-ended':
     case 'end_call':
       handleEndCall(ws, data);
+      break;
+      
+    case 'incoming-call':
+      handleIncomingCall(ws, data);
       break;
       
     case 'ping':
@@ -143,7 +172,8 @@ function handleMessage(ws, data) {
 
 // Регистрация пользователя
 function handleRegister(ws, data) {
-  const { name, phone } = data;
+  const inputData = data.user || data;
+  const { name, phone, id } = inputData;
   
   if (!name || !phone) {
     ws.send(JSON.stringify({
@@ -164,7 +194,7 @@ function handleRegister(ws, data) {
   }
   
   // Создаем нового пользователя
-  const userId = generateId();
+  const userId = id || generateId();
   const userData = {
     id: userId,
     name,
@@ -187,6 +217,33 @@ function handleRegister(ws, data) {
   }));
   
   console.log(`✅ Пользователь зарегистрирован: ${name} (${phone})`);
+  
+  // Уведомляем всех о новом пользователе
+  broadcast({
+    type: 'user-joined',
+    user: {
+      id: userId,
+      name: name,
+      avatar: name.charAt(0).toUpperCase()
+    }
+  });
+}
+
+// Получить список пользователей
+function handleGetUsers(ws) {
+  const usersList = [];
+  users.forEach((user, userId) => {
+    usersList.push({
+      id: userId,
+      name: user.name,
+      avatar: user.name ? user.name.charAt(0).toUpperCase() : '?'
+    });
+  });
+  
+  ws.send(JSON.stringify({
+    type: 'users-list',
+    users: usersList
+  }));
 }
 
 // Авторизация пользователя
@@ -454,6 +511,42 @@ function handleCallResponse(ws, data) {
         type: 'call_declined'
       }));
     }
+  }
+}
+
+// Отклонение звонка
+function handleCallRejected(ws, data) {
+  const { to } = data;
+  
+  // Находим получателя
+  const targetConnection = Array.from(connections.entries()).find(([_, conn]) => 
+    conn.userId === to
+  );
+  
+  if (targetConnection) {
+    const [targetWs] = targetConnection;
+    targetWs.send(JSON.stringify({
+      type: 'call-rejected',
+      from: connections.get(ws).userId
+    }));
+  }
+}
+
+// Обработка входящего звонка
+function handleIncomingCall(ws, data) {
+  const { to, from } = data;
+  
+  // Находим получателя
+  const targetConnection = Array.from(connections.entries()).find(([_, conn]) => 
+    conn.userId === to
+  );
+  
+  if (targetConnection) {
+    const [targetWs] = targetConnection;
+    targetWs.send(JSON.stringify({
+      type: 'incoming-call',
+      from: from
+    }));
   }
 }
 
