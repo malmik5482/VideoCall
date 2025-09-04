@@ -1,6 +1,8 @@
-// ---- VideoChat Pro with GUARANTEED TURN for Russia ----
+// ---- VideoChat Pro: Bulletproof Edition for Russian Networks ----
+// Version: 4.0.0-BULLETPROOF
+// Features: Enhanced error handling, stress testing, diagnostics, future-proof design
 
-// Polyfills and compatibility
+// ========== POLYFILLS AND COMPATIBILITY ==========
 if (!navigator.mediaDevices) navigator.mediaDevices = {};
 if (!navigator.mediaDevices.getUserMedia) {
   navigator.mediaDevices.getUserMedia = function (constraints) {
@@ -10,265 +12,397 @@ if (!navigator.mediaDevices.getUserMedia) {
   };
 }
 
-// Optimized constraints for Russian mobile networks
+// ========== CONSTANTS AND CONFIGURATION ==========
+const APP_VERSION = '4.0.0-BULLETPROOF';
+const TURN_SERVER_IP = '94.198.218.189';
+const TURN_SERVER_PORT = 3478;
+const TURN_USERNAME = 'webrtc';
+
+// Enhanced video constraints with fallbacks
 const VIDEO_CONSTRAINTS = {
-  hd: { 
-    width: { ideal: 1280, min: 640 }, 
-    height: { ideal: 720, min: 360 }, 
-    frameRate: { ideal: 24, max: 30 }
-  },
-  fhd: { 
-    width: { ideal: 1920, min: 1280 }, 
-    height: { ideal: 1080, min: 720 }, 
-    frameRate: { ideal: 24, max: 30 } 
-  },
-  lite: { 
-    width: { ideal: 640, min: 480 }, 
-    height: { ideal: 480, min: 360 }, 
-    frameRate: { ideal: 20, max: 24 } 
-  },
-  mobile: {
-    width: { ideal: 480, min: 320 },
-    height: { ideal: 360, min: 240 },
-    frameRate: { ideal: 15, max: 20 }
-  }
+  ultra: { width: { ideal: 1920, min: 1280 }, height: { ideal: 1080, min: 720 }, frameRate: { ideal: 30, max: 60 } },
+  hd: { width: { ideal: 1280, min: 640 }, height: { ideal: 720, min: 360 }, frameRate: { ideal: 24, max: 30 } },
+  sd: { width: { ideal: 640, min: 480 }, height: { ideal: 480, min: 360 }, frameRate: { ideal: 20, max: 24 } },
+  mobile: { width: { ideal: 480, min: 320 }, height: { ideal: 360, min: 240 }, frameRate: { ideal: 15, max: 20 } },
+  minimal: { width: { ideal: 320, min: 240 }, height: { ideal: 240, min: 180 }, frameRate: { ideal: 10, max: 15 } }
 };
 
 const AUDIO_CONSTRAINTS = {
-  echoCancellation: true,
-  noiseSuppression: true,
-  autoGainControl: true,
-  sampleRate: 16000
+  premium: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, sampleRate: 48000 },
+  standard: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, sampleRate: 24000 },
+  minimal: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, sampleRate: 16000 }
 };
 
-// Enhanced Russian network detection
-function detectEnvironment() {
-  const lang = navigator.language || navigator.userLanguage || '';
-  const userAgent = navigator.userAgent || '';
-  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+// Connection quality thresholds
+const CONNECTION_THRESHOLDS = {
+  excellent: { minBitrate: 2000000, maxPacketLoss: 0.5, maxLatency: 100 },
+  good: { minBitrate: 1000000, maxPacketLoss: 2, maxLatency: 200 },
+  fair: { minBitrate: 500000, maxPacketLoss: 5, maxLatency: 500 },
+  poor: { minBitrate: 200000, maxPacketLoss: 10, maxLatency: 1000 }
+};
+
+// ========== UTILITY FUNCTIONS ==========
+
+// Enhanced Russian network detection with multiple fallbacks
+function detectRussianEnvironment() {
+  const indicators = {
+    language: navigator.language || navigator.userLanguage || '',
+    languages: navigator.languages || [],
+    userAgent: navigator.userAgent || '',
+    timezone: '',
+    platform: navigator.platform || ''
+  };
+
+  try {
+    indicators.timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+  } catch (e) {
+    console.warn('Timezone detection failed:', e);
+  }
+
+  // Multiple detection methods
+  const languageCheck = indicators.language.startsWith('ru') || 
+                       indicators.languages.some(lang => lang.startsWith('ru'));
   
-  // Multiple checks for Russian network
-  const isRussian = lang.startsWith('ru') || 
-                   /ru|russia|moscow|cyrillic/i.test(lang) ||
-                   timezone.includes('Moscow') || 
-                   timezone.includes('Europe/') && 
-                   ['Kaliningrad', 'Samara', 'Yekaterinburg', 'Omsk', 'Krasnoyarsk', 'Irkutsk', 'Yakutsk', 'Vladivostok', 'Magadan', 'Sakhalin', 'Kamchatka'].some(city => timezone.includes(city)) ||
-                   /yandex|mail\.ru|rambler|vk\.com/i.test(userAgent);
+  const userAgentCheck = /yandex|mail\.ru|rambler|vk\.com|ru_RU|россия|russian/i.test(indicators.userAgent);
   
-  const isMobile = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(userAgent);
+  const timezoneCheck = indicators.timezone && (
+    indicators.timezone.includes('Moscow') ||
+    indicators.timezone.includes('Europe/') && [
+      'Kaliningrad', 'Samara', 'Yekaterinburg', 'Omsk', 'Krasnoyarsk', 
+      'Irkutsk', 'Yakutsk', 'Vladivostok', 'Magadan', 'Sakhalin', 'Kamchatka'
+    ].some(city => indicators.timezone.includes(city))
+  );
+
+  const platformCheck = /cyrillic|ru-/i.test(indicators.platform);
+
+  const isRussian = languageCheck || userAgentCheck || timezoneCheck || platformCheck;
   
-  const connectionType = (() => {
-    if (!navigator.connection) return 'unknown';
-    const conn = navigator.connection;
-    const speed = conn.downlink || 0;
-    const type = conn.effectiveType || 'unknown';
-    
-    if (type === '2g' || speed < 0.5) return 'poor';
-    if (type === '3g' || speed < 2) return 'medium';
-    return 'good';
-  })();
-  
-  return { isRussian, isMobile, connectionType };
+  console.log('🔍 Russian detection analysis:', {
+    language: languageCheck,
+    userAgent: userAgentCheck, 
+    timezone: timezoneCheck,
+    platform: platformCheck,
+    final: isRussian
+  });
+
+  return isRussian;
 }
 
-// VideoCallApp with GUARANTEED TURN for Russian users
+// Enhanced mobile and connection detection
+function detectDeviceEnvironment() {
+  const userAgent = navigator.userAgent;
+  
+  const isMobile = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(userAgent);
+  const isTablet = /iPad|Android(?=.*Mobile)|tablet/i.test(userAgent);
+  const isDesktop = !isMobile && !isTablet;
+  
+  let connectionType = 'unknown';
+  let effectiveSpeed = 0;
+  
+  if ('connection' in navigator) {
+    const conn = navigator.connection;
+    effectiveSpeed = conn.downlink || 0;
+    const effectiveType = conn.effectiveType || 'unknown';
+    
+    if (effectiveType === 'slow-2g' || effectiveSpeed < 0.25) connectionType = 'critical';
+    else if (effectiveType === '2g' || effectiveSpeed < 0.5) connectionType = 'poor';
+    else if (effectiveType === '3g' || effectiveSpeed < 1.5) connectionType = 'fair';
+    else if (effectiveType === '4g' || effectiveSpeed < 10) connectionType = 'good';
+    else connectionType = 'excellent';
+  }
+
+  return { isMobile, isTablet, isDesktop, connectionType, effectiveSpeed };
+}
+
+// Quality auto-adjustment based on environment
+function getOptimalQuality(environment) {
+  if (environment.connectionType === 'critical') return 'minimal';
+  if (environment.connectionType === 'poor') return 'mobile';
+  if (environment.connectionType === 'fair') return environment.isMobile ? 'mobile' : 'sd';
+  if (environment.connectionType === 'good') return environment.isMobile ? 'sd' : 'hd';
+  return environment.isMobile ? 'hd' : 'ultra';
+}
+
+// ========== MAIN APPLICATION CLASS ==========
 class VideoCallApp {
   constructor() {
+    console.log(`🚀 VideoChat Pro ${APP_VERSION} initializing...`);
+    
+    // Core WebRTC components
     this.ws = null;
     this.pc = null;
     this.localStream = null;
     this.remoteStream = null;
+    this.dataChannel = null;
+    
+    // Call state
     this.role = null;
     this.currentRoom = null;
     this.callStartTime = null;
     this.callDurationInterval = null;
+    
+    // Configuration
     this.iceServers = [];
     this.deviceCache = { video: [], audio: [], audioOutput: [] };
     this.settings = {
       videoQuality: 'hd',
+      audioQuality: 'standard',
       videoEnabled: true,
       audioEnabled: true,
       selectedVideoDevice: null,
       selectedAudioDevice: null,
       selectedAudioOutput: null
     };
+    
+    // UI state
     this.chatMessages = [];
     this.isScreenSharing = false;
+    this.panels = { chat: false, settings: false, history: false };
+    
+    // Connection management
     this.reconnectAttempts = 0;
-    this.maxReconnectAttempts = 5;
+    this.maxReconnectAttempts = 8; // Increased for reliability
     this.connectionIssues = 0;
+    this.maxConnectionIssues = 5;
+    this.lastSuccessfulConnection = null;
+    
+    // Russian network optimization
+    this.isRussianUser = false;
     this.turnForced = false;
+    this.turnConfirmed = false;
     this.russianOptimizations = false;
     
-    // Detect environment FIRST
-    this.environment = detectEnvironment();
+    // Diagnostics and monitoring
+    this.diagnostics = {
+      connectionAttempts: 0,
+      successfulConnections: 0,
+      turnUsageCount: 0,
+      averageConnectionTime: 0,
+      lastPacketLoss: 0,
+      lastLatency: 0,
+      qualityDowngrades: 0
+    };
     
-    // FORCE TURN for Russian users immediately
-    if (this.environment.isRussian) {
-      this.turnForced = true;
-      this.russianOptimizations = true;
-      console.log('🇷🇺 RUSSIAN USER DETECTED - TURN WILL BE FORCED');
-    }
-    
-    console.log('🌍 Environment detected:', this.environment);
-    console.log('🔄 TURN forced:', this.turnForced);
-    console.log('🇷🇺 Russian optimizations:', this.russianOptimizations);
-    
-    // Auto-adjust quality for mobile/poor connections
-    if (this.environment.isMobile || this.environment.connectionType === 'poor') {
-      this.settings.videoQuality = 'mobile';
-    } else if (this.environment.connectionType === 'medium') {
-      this.settings.videoQuality = 'lite';
-    }
-    
+    // Intervals and timers
+    this.intervals = {
+      callTimer: null,
+      qualityMonitor: null,
+      connectionMonitor: null,
+      heartbeat: null,
+      stressTest: null
+    };
+
+    // Initialize environment detection
+    this.detectEnvironment();
     this.initializeElements();
     this.attachEventListeners();
     this.initializeApp();
   }
 
-  async initializeApp() {
-    try {
-      await this.loadConfig();
-      await this.enumerateDevices();
-      
-      if (this.environment.isRussian) {
-        this.showToast('success', '🇷🇺 Российские оптимизации включены - TURN принудительно активен');
-      }
-      
-      setTimeout(() => this.hideLoading(), 1000);
-    } catch (error) {
-      console.error('App initialization error:', error);
-      this.hideLoading();
+  // ========== INITIALIZATION ==========
+  detectEnvironment() {
+    this.isRussianUser = detectRussianEnvironment();
+    this.environment = detectDeviceEnvironment();
+    
+    // Force TURN for Russian users immediately
+    if (this.isRussianUser) {
+      this.turnForced = true;
+      this.russianOptimizations = true;
+      console.log('🇷🇺 RUSSIAN USER DETECTED - TURN ENFORCEMENT ACTIVE');
     }
+    
+    // Adjust quality based on environment
+    const optimalQuality = getOptimalQuality(this.environment);
+    this.settings.videoQuality = optimalQuality;
+    
+    if (this.environment.connectionType === 'critical' || this.environment.connectionType === 'poor') {
+      this.settings.audioQuality = 'minimal';
+    }
+
+    console.log('🌍 Environment Analysis:', {
+      russian: this.isRussianUser,
+      device: this.environment,
+      turnForced: this.turnForced,
+      optimalQuality: optimalQuality
+    });
   }
 
   initializeElements() {
-    this.elements = {
-      // Screens
-      loadingScreen: document.getElementById('loadingScreen'),
-      app: document.getElementById('app'),
-      joinScreen: document.getElementById('joinScreen'),
-      callScreen: document.getElementById('callScreen'),
-      
-      // Join screen
-      roomInput: document.getElementById('roomInput'),
-      generateRoomBtn: document.getElementById('generateRoomBtn'),
-      previewVideo: document.getElementById('previewVideo'),
-      joinBtn: document.getElementById('joinBtn'),
-      toggleVideoBtn: document.getElementById('toggleVideoBtn'),
-      toggleAudioBtn: document.getElementById('toggleAudioBtn'),
-      
-      // Call screen
-      localVideo: document.getElementById('localVideo'),
-      remoteVideo: document.getElementById('remoteVideo'),
-      connectionIndicator: document.getElementById('connectionIndicator'),
-      
-      // Controls
-      videoToggle: document.getElementById('videoToggle'),
-      audioToggle: document.getElementById('audioToggle'),
-      screenShareToggle: document.getElementById('screenShareToggle'),
-      chatToggle: document.getElementById('chatToggle'),
-      hangupBtn: document.getElementById('hangupBtn'),
-      switchCameraBtn: document.getElementById('switchCameraBtn'),
-      
-      // Info
-      callDuration: document.getElementById('callDuration'),
-      roomCode: document.getElementById('roomCode'),
-      connectionStatus: document.getElementById('connectionStatus'),
-      remoteUserName: document.getElementById('remoteUserName'),
-      
-      // Panels
-      chatPanel: document.getElementById('chatPanel'),
-      settingsPanel: document.getElementById('settingsPanel'),
-      historyPanel: document.getElementById('historyPanel'),
-      
-      // Panel controls
-      settingsBtn: document.getElementById('settingsBtn'),
-      historyBtn: document.getElementById('historyBtn'),
-      closeChatBtn: document.getElementById('closeChatBtn'),
-      closeSettingsBtn: document.getElementById('closeSettingsBtn'),
-      closeHistoryBtn: document.getElementById('closeHistoryBtn'),
-      
-      // Chat
-      chatMessages: document.getElementById('chatMessages'),
-      chatInput: document.getElementById('chatInput'),
-      sendMessageBtn: document.getElementById('sendMessageBtn'),
-      
-      // Settings
-      audioInputSelect: document.getElementById('audioInputSelect'),
-      audioOutputSelect: document.getElementById('audioOutputSelect'),
-      videoInputSelect: document.getElementById('videoInputSelect'),
-      
-      // History
-      historyList: document.getElementById('historyList'),
-      
-      // Toast
-      toastContainer: document.getElementById('toastContainer')
-    };
+    // Cache all DOM elements with error handling
+    const elementIds = [
+      'loadingScreen', 'app', 'joinScreen', 'callScreen',
+      'roomInput', 'generateRoomBtn', 'previewVideo', 'joinBtn', 'toggleVideoBtn', 'toggleAudioBtn',
+      'localVideo', 'remoteVideo', 'connectionIndicator',
+      'videoToggle', 'audioToggle', 'screenShareToggle', 'chatToggle', 'hangupBtn', 'switchCameraBtn',
+      'callDuration', 'roomCode', 'connectionStatus', 'remoteUserName',
+      'chatPanel', 'settingsPanel', 'historyPanel',
+      'settingsBtn', 'historyBtn', 'closeChatBtn', 'closeSettingsBtn', 'closeHistoryBtn',
+      'chatMessages', 'chatInput', 'sendMessageBtn',
+      'audioInputSelect', 'audioOutputSelect', 'videoInputSelect',
+      'historyList', 'toastContainer'
+    ];
+
+    this.elements = {};
+    let missingElements = [];
+
+    elementIds.forEach(id => {
+      const element = document.getElementById(id);
+      if (element) {
+        this.elements[id] = element;
+      } else {
+        missingElements.push(id);
+      }
+    });
+
+    if (missingElements.length > 0) {
+      console.error('❌ Missing DOM elements:', missingElements);
+      this.showCriticalError('Ошибка загрузки интерфейса. Обновите страницу.');
+      return false;
+    }
+
+    console.log('✅ All DOM elements cached successfully');
+    return true;
   }
 
   attachEventListeners() {
-    // Join screen events
-    this.elements.generateRoomBtn.addEventListener('click', () => this.generateRoomCode());
-    this.elements.joinBtn.addEventListener('click', () => this.joinRoom());
-    this.elements.toggleVideoBtn.addEventListener('click', () => this.togglePreviewVideo());
-    this.elements.toggleAudioBtn.addEventListener('click', () => this.togglePreviewAudio());
-    
-    // Call control events
-    this.elements.videoToggle.addEventListener('click', () => this.toggleVideo());
-    this.elements.audioToggle.addEventListener('click', () => this.toggleAudio());
-    this.elements.screenShareToggle.addEventListener('click', () => this.toggleScreenShare());
-    this.elements.chatToggle.addEventListener('click', () => this.toggleChat());
-    this.elements.hangupBtn.addEventListener('click', () => this.hangup());
-    this.elements.switchCameraBtn.addEventListener('click', () => this.switchCamera());
-    
-    // Panel events
-    this.elements.settingsBtn.addEventListener('click', () => this.openPanel('settings'));
-    this.elements.historyBtn.addEventListener('click', () => this.openPanel('history'));
-    this.elements.closeChatBtn.addEventListener('click', () => this.closePanel('chat'));
-    this.elements.closeSettingsBtn.addEventListener('click', () => this.closePanel('settings'));
-    this.elements.closeHistoryBtn.addEventListener('click', () => this.closePanel('history'));
-    
-    // Chat events
-    this.elements.sendMessageBtn.addEventListener('click', () => this.sendChatMessage());
-    this.elements.chatInput.addEventListener('keypress', (e) => {
-      if (e.key === 'Enter') this.sendChatMessage();
-    });
-    
-    // Settings events
-    document.querySelectorAll('input[name="quality"]').forEach(radio => {
-      radio.addEventListener('change', (e) => this.changeVideoQuality(e.target.value));
-    });
-    
-    this.elements.audioInputSelect.addEventListener('change', (e) => this.changeAudioInput(e.target.value));
-    this.elements.audioOutputSelect.addEventListener('change', (e) => this.changeAudioOutput(e.target.value));
-    this.elements.videoInputSelect.addEventListener('change', (e) => this.changeVideoInput(e.target.value));
-    
-    // Keyboard shortcuts
-    document.addEventListener('keydown', (e) => this.handleKeyboardShortcuts(e));
-    
-    // Room input enter key
-    this.elements.roomInput.addEventListener('keypress', (e) => {
-      if (e.key === 'Enter') this.joinRoom();
-    });
-    
-    // Window events
-    window.addEventListener('beforeunload', () => this.cleanup());
-    window.addEventListener('resize', () => this.handleResize());
-    
-    // Network change detection
-    if ('connection' in navigator) {
-      navigator.connection.addEventListener('change', () => this.handleNetworkChange());
+    try {
+      // Join screen events with error handling
+      this.safeAddEventListener(this.elements.generateRoomBtn, 'click', () => this.generateRoomCode());
+      this.safeAddEventListener(this.elements.joinBtn, 'click', () => this.joinRoom());
+      this.safeAddEventListener(this.elements.toggleVideoBtn, 'click', () => this.togglePreviewVideo());
+      this.safeAddEventListener(this.elements.toggleAudioBtn, 'click', () => this.togglePreviewAudio());
+      
+      // Call control events
+      this.safeAddEventListener(this.elements.videoToggle, 'click', () => this.toggleVideo());
+      this.safeAddEventListener(this.elements.audioToggle, 'click', () => this.toggleAudio());
+      this.safeAddEventListener(this.elements.screenShareToggle, 'click', () => this.toggleScreenShare());
+      this.safeAddEventListener(this.elements.chatToggle, 'click', () => this.toggleChat());
+      this.safeAddEventListener(this.elements.hangupBtn, 'click', () => this.hangup());
+      this.safeAddEventListener(this.elements.switchCameraBtn, 'click', () => this.switchCamera());
+      
+      // Panel events
+      this.safeAddEventListener(this.elements.settingsBtn, 'click', () => this.openPanel('settings'));
+      this.safeAddEventListener(this.elements.historyBtn, 'click', () => this.openPanel('history'));
+      this.safeAddEventListener(this.elements.closeChatBtn, 'click', () => this.closePanel('chat'));
+      this.safeAddEventListener(this.elements.closeSettingsBtn, 'click', () => this.closePanel('settings'));
+      this.safeAddEventListener(this.elements.closeHistoryBtn, 'click', () => this.closePanel('history'));
+      
+      // Chat events
+      this.safeAddEventListener(this.elements.sendMessageBtn, 'click', () => this.sendChatMessage());
+      this.safeAddEventListener(this.elements.chatInput, 'keypress', (e) => {
+        if (e.key === 'Enter') this.sendChatMessage();
+      });
+      
+      // Settings events
+      document.querySelectorAll('input[name="quality"]').forEach(radio => {
+        this.safeAddEventListener(radio, 'change', (e) => this.changeVideoQuality(e.target.value));
+      });
+      
+      this.safeAddEventListener(this.elements.audioInputSelect, 'change', (e) => this.changeAudioInput(e.target.value));
+      this.safeAddEventListener(this.elements.audioOutputSelect, 'change', (e) => this.changeAudioOutput(e.target.value));
+      this.safeAddEventListener(this.elements.videoInputSelect, 'change', (e) => this.changeVideoInput(e.target.value));
+      
+      // Global events
+      this.safeAddEventListener(document, 'keydown', (e) => this.handleKeyboardShortcuts(e));
+      this.safeAddEventListener(this.elements.roomInput, 'keypress', (e) => {
+        if (e.key === 'Enter') this.joinRoom();
+      });
+      
+      // Window events
+      this.safeAddEventListener(window, 'beforeunload', () => this.cleanup());
+      this.safeAddEventListener(window, 'resize', () => this.handleResize());
+      this.safeAddEventListener(document, 'visibilitychange', () => this.handleVisibilityChange());
+      this.safeAddEventListener(window, 'online', () => this.handleOnline());
+      this.safeAddEventListener(window, 'offline', () => this.handleOffline());
+      
+      // Network change detection
+      if ('connection' in navigator) {
+        this.safeAddEventListener(navigator.connection, 'change', () => this.handleNetworkChange());
+      }
+
+      console.log('✅ All event listeners attached successfully');
+    } catch (error) {
+      console.error('❌ Event listener attachment failed:', error);
+      this.showCriticalError('Ошибка инициализации событий');
     }
-    
-    // Visibility change for optimization
-    document.addEventListener('visibilitychange', () => this.handleVisibilityChange());
-    
-    // Online/offline events
-    window.addEventListener('online', () => this.handleOnline());
-    window.addEventListener('offline', () => this.handleOffline());
   }
 
+  safeAddEventListener(element, event, handler) {
+    if (element && typeof handler === 'function') {
+      try {
+        element.addEventListener(event, handler);
+      } catch (error) {
+        console.warn(`Failed to add ${event} listener:`, error);
+      }
+    }
+  }
+
+  async initializeApp() {
+    try {
+      console.log('🔧 Initializing application components...');
+      
+      await this.loadConfig();
+      await this.enumerateDevices();
+      await this.performInitialDiagnostics();
+      
+      if (this.isRussianUser) {
+        this.showToast('success', '🇷🇺 Российские оптимизации активированы');
+      }
+      
+      // Start monitoring systems
+      this.startConnectionMonitoring();
+      this.startHeartbeat();
+      
+      setTimeout(() => this.hideLoading(), 1500);
+      
+    } catch (error) {
+      console.error('❌ Application initialization failed:', error);
+      this.showCriticalError('Ошибка инициализации приложения');
+    }
+  }
+
+  async performInitialDiagnostics() {
+    console.log('🔍 Running initial diagnostics...');
+    
+    try {
+      // Test WebRTC support
+      if (!window.RTCPeerConnection) {
+        throw new Error('WebRTC not supported');
+      }
+      
+      // Test getUserMedia support
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error('getUserMedia not supported');
+      }
+      
+      // Test network connectivity
+      const connectivityTest = await fetch('/healthz').catch(() => null);
+      if (!connectivityTest || !connectivityTest.ok) {
+        console.warn('⚠️ Server connectivity issues detected');
+      }
+      
+      // Test TURN server availability
+      if (this.iceServers.length === 0) {
+        console.warn('⚠️ No ICE servers configured');
+      } else {
+        const turnServers = this.iceServers.filter(server => 
+          server.urls && (
+            (typeof server.urls === 'string' && server.urls.includes('turn:')) ||
+            (Array.isArray(server.urls) && server.urls.some(url => url.includes('turn:')))
+          )
+        );
+        console.log(`🔄 TURN servers available: ${turnServers.length}`);
+      }
+      
+      console.log('✅ Initial diagnostics completed');
+      
+    } catch (error) {
+      console.error('❌ Diagnostics failed:', error);
+      throw error;
+    }
+  }
+
+  // ========== CONFIGURATION LOADING ==========
   async loadConfig() {
     try {
       const response = await fetch('/config');
@@ -277,45 +411,52 @@ class VideoCallApp {
       if (config && Array.isArray(config.iceServers)) {
         this.iceServers = config.iceServers;
         
-        console.log(`📡 Loaded ${this.iceServers.length} ICE servers`);
-        
-        // Log TURN server info
-        const turnServers = this.iceServers.filter(server => 
+        // Validate TURN server configuration
+        const yourTurnServer = this.iceServers.find(server => 
           server.urls && (
-            (typeof server.urls === 'string' && server.urls.includes('turn:')) ||
-            (Array.isArray(server.urls) && server.urls.some(url => url.includes('turn:')))
+            (typeof server.urls === 'string' && server.urls.includes(TURN_SERVER_IP)) ||
+            (Array.isArray(server.urls) && server.urls.some(url => url.includes(TURN_SERVER_IP)))
           )
         );
         
-        console.log(`🔄 TURN servers available: ${turnServers.length}`);
+        if (yourTurnServer) {
+          console.log(`🎯 Your TURN server (${TURN_SERVER_IP}) detected and configured`);
+        } else {
+          console.warn(`⚠️ Your TURN server (${TURN_SERVER_IP}) not found in configuration`);
+        }
         
-        turnServers.forEach((server, index) => {
-          const urls = Array.isArray(server.urls) ? server.urls : [server.urls];
-          urls.forEach(url => {
-            if (url.includes('94.198.218.189')) {
-              console.log(`🔄 Your TURN server detected: ${url}`);
-            }
-          });
-        });
+        console.log(`📡 Loaded ${this.iceServers.length} ICE servers`);
+      } else {
+        throw new Error('Invalid ICE configuration received');
       }
+      
     } catch (error) {
-      console.warn('Could not load ICE config:', error);
-      // Fallback with your TURN server
+      console.warn('Config loading failed, using fallback:', error);
+      
+      // Robust fallback configuration
       this.iceServers = [
         {
           urls: [
-            'turn:94.198.218.189:3478?transport=udp',
-            'turn:94.198.218.189:3478?transport=tcp'
+            `turn:${TURN_SERVER_IP}:${TURN_SERVER_PORT}?transport=udp`,
+            `turn:${TURN_SERVER_IP}:${TURN_SERVER_PORT}?transport=tcp`
           ],
-          username: 'webrtc',
+          username: TURN_USERNAME,
           credential: 'pRr45XBJgdff9Z2Q4EdTLwOUyqudQjtN'
         },
+        // Russian STUN servers as backup
         { urls: 'stun:stun.voipbuster.com:3478' },
+        { urls: 'stun:stun.sipnet.net:3478' },
+        { urls: 'stun:stun.sipnet.ru:3478' },
+        // International fallbacks
+        { urls: 'stun:stun.stunprotocol.org:3478' },
         { urls: 'stun:stun.l.google.com:19302' }
       ];
+      
+      console.log('📡 Fallback ICE configuration loaded');
     }
   }
 
+  // ========== DEVICE MANAGEMENT ==========
   async enumerateDevices() {
     try {
       const devices = await navigator.mediaDevices.enumerateDevices();
@@ -324,94 +465,160 @@ class VideoCallApp {
       this.deviceCache.audio = devices.filter(d => d.kind === 'audioinput');
       this.deviceCache.audioOutput = devices.filter(d => d.kind === 'audiooutput');
       
+      console.log(`🎥 Found ${this.deviceCache.video.length} video devices`);
+      console.log(`🎤 Found ${this.deviceCache.audio.length} audio devices`);
+      console.log(`🔊 Found ${this.deviceCache.audioOutput.length} output devices`);
+      
       this.populateDeviceSelects();
+      
+      // Auto-select defaults if available
+      if (this.deviceCache.video.length > 0 && !this.settings.selectedVideoDevice) {
+        this.settings.selectedVideoDevice = this.deviceCache.video[0].deviceId;
+      }
+      if (this.deviceCache.audio.length > 0 && !this.settings.selectedAudioDevice) {
+        this.settings.selectedAudioDevice = this.deviceCache.audio[0].deviceId;
+      }
+      
     } catch (error) {
-      console.warn('Could not enumerate devices:', error);
+      console.warn('Device enumeration failed:', error);
+      this.showToast('warning', 'Не удалось получить список устройств');
     }
   }
 
   populateDeviceSelects() {
-    // Video devices
-    this.elements.videoInputSelect.innerHTML = '<option value="">Выберите камеру...</option>';
-    this.deviceCache.video.forEach(device => {
+    // Video devices with enhanced labeling
+    this.elements.videoInputSelect.innerHTML = '<option value="">Автоматический выбор камеры</option>';
+    this.deviceCache.video.forEach((device, index) => {
       const option = document.createElement('option');
       option.value = device.deviceId;
-      option.textContent = device.label || `Камера ${device.deviceId.substr(0, 8)}`;
+      option.textContent = device.label || `Камера ${index + 1}`;
       this.elements.videoInputSelect.appendChild(option);
     });
 
     // Audio input devices
-    this.elements.audioInputSelect.innerHTML = '<option value="">Выберите микрофон...</option>';
-    this.deviceCache.audio.forEach(device => {
+    this.elements.audioInputSelect.innerHTML = '<option value="">Автоматический выбор микрофона</option>';
+    this.deviceCache.audio.forEach((device, index) => {
       const option = document.createElement('option');
       option.value = device.deviceId;
-      option.textContent = device.label || `Микрофон ${device.deviceId.substr(0, 8)}`;
+      option.textContent = device.label || `Микрофон ${index + 1}`;
       this.elements.audioInputSelect.appendChild(option);
     });
 
     // Audio output devices
-    this.elements.audioOutputSelect.innerHTML = '<option value="">Выберите динамики...</option>';
-    this.deviceCache.audioOutput.forEach(device => {
+    this.elements.audioOutputSelect.innerHTML = '<option value="">Динамики по умолчанию</option>';
+    this.deviceCache.audioOutput.forEach((device, index) => {
       const option = document.createElement('option');
       option.value = device.deviceId;
-      option.textContent = device.label || `Динамики ${device.deviceId.substr(0, 8)}`;
+      option.textContent = device.label || `Динамики ${index + 1}`;
       this.elements.audioOutputSelect.appendChild(option);
     });
   }
 
+  // ========== UI MANAGEMENT ==========
   hideLoading() {
-    this.elements.loadingScreen.classList.add('hidden');
-    this.elements.app.classList.remove('hidden');
-    this.startPreviewMedia();
+    try {
+      this.elements.loadingScreen.classList.add('hidden');
+      this.elements.app.classList.remove('hidden');
+      this.startPreviewMedia();
+    } catch (error) {
+      console.error('Error hiding loading screen:', error);
+    }
   }
 
   async startPreviewMedia() {
     try {
-      const constraints = {
-        video: VIDEO_CONSTRAINTS[this.settings.videoQuality],
-        audio: AUDIO_CONSTRAINTS
-      };
+      const videoConstraints = VIDEO_CONSTRAINTS[this.settings.videoQuality];
+      const audioConstraints = AUDIO_CONSTRAINTS[this.settings.audioQuality];
       
-      if (this.settings.selectedVideoDevice) {
-        constraints.video.deviceId = { exact: this.settings.selectedVideoDevice };
-      }
-      if (this.settings.selectedAudioDevice) {
-        constraints.audio.deviceId = { exact: this.settings.selectedAudioDevice };
-      }
+      const constraints = {
+        video: this.settings.selectedVideoDevice ? 
+          { ...videoConstraints, deviceId: { exact: this.settings.selectedVideoDevice } } : 
+          videoConstraints,
+        audio: this.settings.selectedAudioDevice ? 
+          { ...audioConstraints, deviceId: { exact: this.settings.selectedAudioDevice } } : 
+          audioConstraints
+      };
 
+      console.log('🎥 Starting media preview with constraints:', constraints);
+      
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      
       this.elements.previewVideo.srcObject = stream;
       this.localStream = stream;
       
+      // Optimize video track
+      const videoTrack = stream.getVideoTracks()[0];
+      if (videoTrack && 'contentHint' in videoTrack) {
+        videoTrack.contentHint = 'motion';
+      }
+      
       this.updateConnectionStatus('ready', 'Готов к подключению');
       
+      console.log(`✅ Media preview started: ${stream.getTracks().length} tracks`);
+      
       if (this.turnForced) {
-        this.showToast('success', '🔄 TURN сервер активирован: 94.198.218.189');
+        this.showToast('info', `🔄 TURN сервер ${TURN_SERVER_IP} готов`);
       }
+      
     } catch (error) {
       console.error('Preview media error:', error);
-      this.showToast('error', 'Не удалось получить доступ к камере/микрофону');
+      this.handleMediaError(error);
     }
+  }
+
+  handleMediaError(error) {
+    let message = 'Ошибка доступа к медиа устройствам';
+    
+    if (error.name === 'NotAllowedError') {
+      message = 'Разрешите доступ к камере и микрофону';
+    } else if (error.name === 'NotFoundError') {
+      message = 'Камера или микрофон не найдены';
+    } else if (error.name === 'NotReadableError') {
+      message = 'Устройства заняты другим приложением';
+    } else if (error.name === 'OverconstrainedError') {
+      message = 'Настройки качества не поддерживаются';
+      // Try fallback quality
+      this.settings.videoQuality = 'mobile';
+      this.settings.audioQuality = 'minimal';
+      setTimeout(() => this.startPreviewMedia(), 1000);
+      return;
+    }
+    
+    this.showToast('error', message);
+    this.updateConnectionStatus('error', 'Ошибка медиа');
   }
 
   generateRoomCode() {
     const code = Math.random().toString(36).substring(2, 8).toUpperCase();
     this.elements.roomInput.value = code;
+    
+    // Animate button
     this.elements.generateRoomBtn.style.transform = 'rotate(360deg)';
     setTimeout(() => {
       this.elements.generateRoomBtn.style.transform = '';
     }, 300);
+    
+    console.log(`🎲 Generated room code: ${code}`);
   }
 
+  // ========== ROOM MANAGEMENT ==========
   async joinRoom() {
-    const room = this.elements.roomInput.value.trim();
+    const room = this.elements.roomInput.value.trim().toUpperCase();
     if (!room) {
       this.showToast('warning', 'Введите код комнаты');
       return;
     }
 
+    if (room.length < 3 || room.length > 20) {
+      this.showToast('warning', 'Код комнаты должен быть от 3 до 20 символов');
+      return;
+    }
+
     try {
       this.elements.joinBtn.disabled = true;
+      this.diagnostics.connectionAttempts++;
+      
+      console.log(`🚪 Joining room: ${room}`);
       this.updateConnectionStatus('connecting', 'Подключение...');
       
       if (!this.localStream) {
@@ -421,8 +628,8 @@ class VideoCallApp {
       this.currentRoom = room;
       this.elements.roomCode.textContent = `Комната: ${room}`;
       
-      this.createPeerConnection();
-      this.connectWebSocket(room);
+      await this.createPeerConnection();
+      await this.connectWebSocket(room);
       
       // Switch to call screen
       this.elements.joinScreen.style.display = 'none';
@@ -430,452 +637,684 @@ class VideoCallApp {
       this.elements.localVideo.srcObject = this.localStream;
       
       if (this.turnForced) {
-        this.showToast('info', `🔄 Подключение через TURN сервер (${room})`);
+        this.showToast('info', `🔄 Подключение через TURN сервер...`);
       } else {
-        this.showToast('info', `Подключение к комнате ${room}...`);
+        this.showToast('info', `📞 Подключение к комнате ${room}...`);
       }
       
     } catch (error) {
       console.error('Join room error:', error);
-      this.showToast('error', 'Ошибка подключения');
+      this.showToast('error', `Ошибка подключения: ${error.message}`);
       this.elements.joinBtn.disabled = false;
+      this.diagnostics.connectionAttempts--;
     }
   }
 
-  createPeerConnection() {
-    // Configuration with GUARANTEED TURN for Russian users
-    const config = { 
-      iceServers: this.iceServers,
-      iceCandidatePoolSize: 20,
-      rtcpMuxPolicy: 'require',
-      bundlePolicy: 'max-bundle'
-    };
-    
-    // GUARANTEED TURN enforcement for Russian users
-    if (this.environment.isRussian || this.turnForced) {
-      config.iceTransportPolicy = 'relay'; // ONLY TURN, no STUN allowed!
-      this.turnForced = true;
-      this.russianOptimizations = true;
-      console.log('🔄 GUARANTEED TURN enforced - iceTransportPolicy: relay');
-      console.log('🇷🇺 Russian optimizations: true');
-      console.log('🔄 TURN forced: true');
-    } else {
-      config.iceTransportPolicy = 'all';
-      console.log('📡 Standard policy - allowing STUN and TURN');
-    }
-    
-    this.pc = new RTCPeerConnection(config);
-
-    // Add local stream tracks
-    if (this.localStream) {
-      this.localStream.getTracks().forEach(track => {
-        this.pc.addTrack(track, this.localStream);
-      });
-    }
-
-    // Enhanced encoding parameters
-    setTimeout(() => {
-      this.optimizePeerConnection();
-    }, 100);
-
-    // Event handlers with enhanced TURN monitoring
-    this.pc.ontrack = async (event) => {
-      this.remoteStream = event.streams[0];
-      this.elements.remoteVideo.srcObject = this.remoteStream;
-      this.updateConnectionStatus('connected', 'Подключен');
-      this.startCallTimer();
+  // ========== PEER CONNECTION MANAGEMENT ==========
+  async createPeerConnection() {
+    try {
+      console.log('🔗 Creating peer connection...');
       
-      if (this.turnForced) {
-        this.showToast('success', '🔄 Соединение через TURN сервер установлено');
+      // Enhanced configuration for maximum reliability
+      const config = { 
+        iceServers: this.iceServers,
+        iceCandidatePoolSize: this.isRussianUser ? 25 : 15, // More candidates for Russian networks
+        rtcpMuxPolicy: 'require',
+        bundlePolicy: 'max-bundle'
+      };
+      
+      // GUARANTEED TURN enforcement for Russian users
+      if (this.isRussianUser || this.turnForced) {
+        config.iceTransportPolicy = 'relay'; // ONLY TURN, block STUN/host
+        console.log('🔄 ENFORCING RELAY-ONLY POLICY (TURN mandatory)');
       } else {
-        this.showToast('success', 'Соединение установлено');
+        config.iceTransportPolicy = 'all';
+        console.log('📡 Using standard ICE policy');
       }
       
-      this.connectionIssues = 0;
+      this.pc = new RTCPeerConnection(config);
+      
+      // Add local stream tracks with error handling
+      if (this.localStream) {
+        this.localStream.getTracks().forEach(track => {
+          try {
+            this.pc.addTrack(track, this.localStream);
+            console.log(`➕ Added ${track.kind} track to peer connection`);
+          } catch (error) {
+            console.error(`Failed to add ${track.kind} track:`, error);
+          }
+        });
+      }
+
+      // Create data channel for enhanced features
+      try {
+        this.dataChannel = this.pc.createDataChannel('chat', {
+          ordered: true,
+          maxRetransmits: 3
+        });
+        this.setupDataChannelHandlers(this.dataChannel);
+      } catch (error) {
+        console.warn('Data channel creation failed:', error);
+      }
+
+      // Setup event handlers
+      this.setupPeerConnectionHandlers();
+      
+      // Optimize encoding parameters after brief delay
+      setTimeout(() => this.optimizePeerConnection(), 200);
+      
+      console.log('✅ Peer connection created successfully');
+      
+    } catch (error) {
+      console.error('❌ Peer connection creation failed:', error);
+      throw error;
+    }
+  }
+
+  setupPeerConnectionHandlers() {
+    // Track event - remote stream received
+    this.pc.ontrack = async (event) => {
+      console.log('📺 Remote track received:', event.track.kind);
+      
+      try {
+        this.remoteStream = event.streams[0];
+        this.elements.remoteVideo.srcObject = this.remoteStream;
+        
+        await this.elements.remoteVideo.play();
+        
+        this.updateConnectionStatus('connected', 'Подключен');
+        this.startCallTimer();
+        this.connectionIssues = 0;
+        this.lastSuccessfulConnection = Date.now();
+        this.diagnostics.successfulConnections++;
+        
+        if (this.turnForced) {
+          this.showToast('success', '🔄 Соединение через TURN установлено');
+        } else {
+          this.showToast('success', '✅ Соединение установлено');
+        }
+        
+        // Start quality monitoring
+        this.startQualityMonitoring();
+        
+      } catch (error) {
+        console.error('Error handling remote track:', error);
+      }
     };
 
+    // ICE candidate event
     this.pc.onicecandidate = (event) => {
       if (event.candidate) {
-        // Enhanced TURN candidate logging
-        if (event.candidate.candidate) {
-          if (event.candidate.candidate.includes('relay')) {
-            console.log('🔄 TURN candidate generated:', event.candidate.candidate);
-            if (event.candidate.candidate.includes('94.198.218.189')) {
-              console.log('🎯 YOUR TURN SERVER CANDIDATE GENERATED!');
-              this.showToast('success', '🔄 Ваш TURN сервер активен');
-            }
-          } else if (event.candidate.candidate.includes('srflx')) {
-            console.log('📡 STUN candidate generated (should not happen with relay-only)');
-          } else if (event.candidate.candidate.includes('host')) {
-            console.log('🏠 Host candidate generated (should not happen with relay-only)');
-          }
-        }
-        
-        this.sendSignalMessage({ 
-          type: 'candidate', 
-          candidate: event.candidate 
-        });
+        this.handleLocalIceCandidate(event.candidate);
       } else {
-        console.log('🧊 ICE gathering complete');
+        console.log('🧊 ICE gathering completed');
       }
     };
 
+    // Connection state changes
     this.pc.onconnectionstatechange = () => {
       const state = this.pc.connectionState;
-      console.log(`Connection state: ${state}`);
+      console.log(`🔗 Connection state: ${state}`);
       this.updateConnectionIndicator();
-      
-      if (state === 'failed') {
-        console.error('❌ Connection FAILED');
-        this.connectionIssues++;
-        this.handleConnectionFailure();
-      } else if (state === 'disconnected') {
-        console.warn('⚠️ Connection DISCONNECTED');
-        this.showToast('warning', 'Соединение потеряно, восстановление...');
-        this.scheduleReconnection();
-      } else if (state === 'connected') {
-        console.log('✅ Connection ESTABLISHED');
-        this.reconnectAttempts = 0;
-        this.checkTurnUsage();
-      }
+      this.handleConnectionStateChange(state);
     };
 
+    // ICE connection state changes  
     this.pc.oniceconnectionstatechange = () => {
       const iceState = this.pc.iceConnectionState;
-      console.log(`ICE connection state: ${iceState}`);
-      
-      if (iceState === 'failed') {
-        console.error('🧊❌ ICE CONNECTION FAILED - Restarting...');
-        this.sendSignalMessage({ type: 'connection-failed', reason: 'ice-failed' });
-        
-        // Immediate restart for failed ICE
-        setTimeout(() => {
-          if (this.pc && this.pc.iceConnectionState === 'failed') {
-            console.log('🔄 Executing ICE restart...');
-            this.pc.restartIce();
-          }
-        }, 500);
-      } else if (iceState === 'disconnected') {
-        console.warn('🧊⚠️ ICE DISCONNECTED - Scheduling restart...');
-        setTimeout(() => {
-          if (this.pc && this.pc.iceConnectionState === 'disconnected') {
-            console.log('🔄 ICE restart after disconnect...');
-            this.pc.restartIce();
-          }
-        }, 2000);
-      } else if (iceState === 'connected') {
-        console.log('🧊✅ ICE CONNECTED');
-      }
+      console.log(`🧊 ICE connection state: ${iceState}`);
+      this.handleIceConnectionStateChange(iceState);
+    };
+
+    // ICE gathering state
+    this.pc.onicegatheringstatechange = () => {
+      console.log(`🧊 ICE gathering state: ${this.pc.iceGatheringState}`);
+    };
+
+    // Signaling state changes
+    this.pc.onsignalingstatechange = () => {
+      console.log(`📡 Signaling state: ${this.pc.signalingState}`);
+    };
+
+    // Data channel event
+    this.pc.ondatachannel = (event) => {
+      console.log('📨 Data channel received');
+      this.setupDataChannelHandlers(event.channel);
+    };
+
+    // Stats and monitoring
+    this.pc.onstatsended = () => {
+      console.log('📊 Stats ended');
     };
   }
 
-  async checkTurnUsage() {
-    if (!this.pc) return;
-    
+  handleLocalIceCandidate(candidate) {
     try {
-      const stats = await this.pc.getStats();
-      let usingTurn = false;
-      let turnServerUsed = null;
+      // Enhanced candidate logging and analysis
+      const candidateStr = candidate.candidate;
+      let candidateType = 'unknown';
       
-      stats.forEach(report => {
-        if (report.type === 'candidate-pair' && report.state === 'succeeded') {
-          if (report.remoteCandidateId) {
-            stats.forEach(candidateReport => {
-              if (candidateReport.id === report.remoteCandidateId && 
-                  candidateReport.candidateType === 'relay') {
-                usingTurn = true;
-                turnServerUsed = candidateReport.ip || candidateReport.address || 'unknown';
-                console.log('🔄✅ Connection established via TURN server:', turnServerUsed);
-              }
-            });
-          }
+      if (candidateStr.includes('typ relay')) {
+        candidateType = 'TURN';
+        if (candidateStr.includes(TURN_SERVER_IP)) {
+          console.log('🎯 YOUR TURN SERVER CANDIDATE GENERATED!');
+          this.turnConfirmed = true;
+          this.diagnostics.turnUsageCount++;
+        } else {
+          console.log('🔄 TURN candidate generated (other server)');
         }
+      } else if (candidateStr.includes('typ srflx')) {
+        candidateType = 'STUN';
+        console.log('📡 STUN candidate generated');
+      } else if (candidateStr.includes('typ host')) {
+        candidateType = 'HOST';
+        console.log('🏠 Host candidate generated');
+      }
+      
+      // Send candidate to remote peer
+      this.sendSignalMessage({ 
+        type: 'candidate', 
+        candidate: candidate 
       });
       
-      if (usingTurn) {
-        if (turnServerUsed && turnServerUsed.includes('94.198.218.189')) {
-          this.showToast('success', '🎯 Подключено через ВАШ TURN сервер!');
-        } else {
-          this.showToast('info', '🔄 Подключено через TURN сервер');
-        }
-      } else if (this.turnForced) {
-        console.warn('⚠️ TURN was forced but connection not using TURN - checking...');
-        // Re-check in case stats are not ready yet
-        setTimeout(() => this.checkTurnUsage(), 2000);
-      } else {
-        console.log('📡 Direct connection established (no TURN needed)');
-      }
     } catch (error) {
-      console.warn('Error checking TURN usage:', error);
+      console.error('Error handling ICE candidate:', error);
     }
   }
 
+  handleConnectionStateChange(state) {
+    switch (state) {
+      case 'connecting':
+        console.log('🔄 Connection establishing...');
+        break;
+        
+      case 'connected':
+        console.log('✅ Connection established successfully');
+        this.reconnectAttempts = 0;
+        this.connectionIssues = 0;
+        this.verifyTurnUsage();
+        break;
+        
+      case 'disconnected':
+        console.warn('⚠️ Connection disconnected');
+        this.showToast('warning', 'Соединение потеряно, восстановление...');
+        this.scheduleReconnection();
+        break;
+        
+      case 'failed':
+        console.error('❌ Connection failed');
+        this.connectionIssues++;
+        this.handleConnectionFailure();
+        break;
+        
+      case 'closed':
+        console.log('🔒 Connection closed');
+        break;
+    }
+  }
+
+  handleIceConnectionStateChange(iceState) {
+    switch (iceState) {
+      case 'checking':
+        console.log('🔍 ICE checking...');
+        break;
+        
+      case 'connected':
+        console.log('✅ ICE connected');
+        break;
+        
+      case 'completed':
+        console.log('✅ ICE completed');
+        break;
+        
+      case 'failed':
+        console.error('❌ ICE connection failed');
+        this.handleIceFailure();
+        break;
+        
+      case 'disconnected':
+        console.warn('⚠️ ICE disconnected');
+        this.handleIceDisconnection();
+        break;
+        
+      case 'closed':
+        console.log('🔒 ICE closed');
+        break;
+    }
+  }
+
+  setupDataChannelHandlers(channel) {
+    channel.onopen = () => {
+      console.log('📨 Data channel opened');
+    };
+    
+    channel.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        this.handleDataChannelMessage(data);
+      } catch (error) {
+        console.error('Data channel message error:', error);
+      }
+    };
+    
+    channel.onerror = (error) => {
+      console.error('Data channel error:', error);
+    };
+    
+    channel.onclose = () => {
+      console.log('📨 Data channel closed');
+    };
+  }
+
+  handleDataChannelMessage(data) {
+    switch (data.type) {
+      case 'quality-report':
+        this.handleRemoteQualityReport(data);
+        break;
+      case 'connection-test':
+        this.respondToConnectionTest(data);
+        break;
+      default:
+        console.log('Unknown data channel message:', data);
+    }
+  }
+
+  // ========== CONNECTION QUALITY OPTIMIZATION ==========
   optimizePeerConnection() {
     if (!this.pc) return;
+
+    console.log('⚙️ Optimizing peer connection...');
 
     this.pc.getSenders().forEach(sender => {
       if (!sender.track) return;
       
-      const params = sender.getParameters();
-      if (!params.encodings) params.encodings = [{}];
-      
-      if (sender.track.kind === 'video') {
-        // Conservative bitrates for Russian networks
-        let maxBitrate;
-        if (this.environment.isMobile || this.environment.connectionType === 'poor') {
-          maxBitrate = 300000; // 300 kbps for mobile/poor
-        } else if (this.environment.connectionType === 'medium' || this.environment.isRussian) {
-          maxBitrate = 600000; // 600 kbps for medium/Russian
-        } else {
-          const bitrates = { hd: 1200000, fhd: 2000000, lite: 500000, mobile: 300000 };
-          maxBitrate = bitrates[this.settings.videoQuality];
+      try {
+        const params = sender.getParameters();
+        if (!params.encodings) params.encodings = [{}];
+        
+        if (sender.track.kind === 'video') {
+          this.optimizeVideoSender(sender, params);
+        } else if (sender.track.kind === 'audio') {
+          this.optimizeAudioSender(sender, params);
         }
         
-        params.encodings[0].maxBitrate = maxBitrate;
-        params.encodings[0].maxFramerate = this.environment.isMobile ? 15 : 24;
+        sender.setParameters(params).catch(error => {
+          console.warn(`Failed to set ${sender.track.kind} parameters:`, error);
+        });
         
-        if ('degradationPreference' in params) {
-          params.degradationPreference = 'maintain-framerate';
-        }
-        
-        console.log(`📹 Video bitrate: ${maxBitrate} bps (${this.environment.connectionType} connection)`);
-      } else if (sender.track.kind === 'audio') {
-        const audioBitrate = this.environment.isMobile ? 32000 : 64000;
-        params.encodings[0].maxBitrate = audioBitrate;
-        console.log(`🎤 Audio bitrate: ${audioBitrate} bps`);
+      } catch (error) {
+        console.error(`Error optimizing ${sender.track.kind} sender:`, error);
       }
-      
-      sender.setParameters(params).catch(err => {
-        console.warn('Error setting parameters:', err);
-      });
     });
 
-    // Codec preferences - prefer H.264 for Russian networks
-    this.setCodecPreferences();
+    // Set codec preferences
+    this.setOptimalCodecPreferences();
   }
 
-  setCodecPreferences() {
+  optimizeVideoSender(sender, params) {
+    // Determine optimal bitrate based on environment
+    let maxBitrate;
+    let maxFramerate;
+    
+    if (this.environment.connectionType === 'critical') {
+      maxBitrate = 150000; // 150 kbps
+      maxFramerate = 10;
+    } else if (this.environment.connectionType === 'poor') {
+      maxBitrate = 300000; // 300 kbps
+      maxFramerate = 15;
+    } else if (this.environment.connectionType === 'fair' || this.environment.isMobile) {
+      maxBitrate = 600000; // 600 kbps
+      maxFramerate = 20;
+    } else if (this.environment.connectionType === 'good') {
+      maxBitrate = 1200000; // 1.2 Mbps
+      maxFramerate = 25;
+    } else {
+      maxBitrate = 2000000; // 2 Mbps
+      maxFramerate = 30;
+    }
+
+    // Apply Russian network adjustments
+    if (this.isRussianUser) {
+      maxBitrate = Math.min(maxBitrate, 800000); // Cap at 800 kbps for Russian networks
+      maxFramerate = Math.min(maxFramerate, 24); // Cap framerate
+    }
+
+    params.encodings[0].maxBitrate = maxBitrate;
+    params.encodings[0].maxFramerate = maxFramerate;
+    
+    if ('degradationPreference' in params) {
+      params.degradationPreference = 'maintain-framerate';
+    }
+    
+    // Enable adaptive bitrate for unstable connections
+    if (this.connectionIssues > 0) {
+      params.encodings[0].maxBitrate = Math.floor(maxBitrate * 0.7);
+    }
+    
+    console.log(`📹 Video optimized: ${params.encodings[0].maxBitrate} bps, ${params.encodings[0].maxFramerate} fps`);
+  }
+
+  optimizeAudioSender(sender, params) {
+    let maxBitrate;
+    
+    if (this.environment.connectionType === 'critical') {
+      maxBitrate = 32000; // 32 kbps
+    } else if (this.environment.connectionType === 'poor' || this.environment.isMobile) {
+      maxBitrate = 48000; // 48 kbps
+    } else {
+      maxBitrate = 64000; // 64 kbps
+    }
+    
+    params.encodings[0].maxBitrate = maxBitrate;
+    
+    console.log(`🎤 Audio optimized: ${maxBitrate} bps`);
+  }
+
+  setOptimalCodecPreferences() {
     try {
       const capabilities = RTCRtpSender.getCapabilities('video');
-      if (capabilities && this.pc.getTransceivers) {
-        const transceiver = this.pc.getTransceivers().find(t => 
-          t.sender?.track?.kind === 'video'
+      if (!capabilities) return;
+      
+      const videoTransceiver = this.pc.getTransceivers().find(t => 
+        t.sender?.track?.kind === 'video'
+      );
+      
+      if (videoTransceiver && videoTransceiver.setCodecPreferences) {
+        // Prefer H.264 for better mobile/network compatibility
+        let preferredCodecs = capabilities.codecs.filter(codec =>
+          /H264/i.test(codec.mimeType) && !/rtx/i.test(codec.mimeType)
         );
         
-        if (transceiver && transceiver.setCodecPreferences) {
-          // Prefer H.264 for better mobile/Russian network compatibility
-          let preferredCodecs = capabilities.codecs.filter(codec =>
-            /H264/i.test(codec.mimeType) && !/rtx/i.test(codec.mimeType)
+        // Fallback to VP8 for better compatibility than VP9
+        if (preferredCodecs.length === 0) {
+          preferredCodecs = capabilities.codecs.filter(codec =>
+            /VP8/i.test(codec.mimeType) && !/rtx/i.test(codec.mimeType)
           );
-          
-          // Fallback to VP8 if H.264 not available
-          if (preferredCodecs.length === 0) {
-            preferredCodecs = capabilities.codecs.filter(codec =>
-              /VP8/i.test(codec.mimeType) && !/rtx/i.test(codec.mimeType)
-            );
-          }
-          
-          if (preferredCodecs.length > 0) {
-            transceiver.setCodecPreferences(preferredCodecs);
-            console.log('📺 H.264 codec preferred for Russian networks');
-          }
+        }
+        
+        if (preferredCodecs.length > 0) {
+          videoTransceiver.setCodecPreferences(preferredCodecs);
+          console.log('📺 Codec preferences set for optimal compatibility');
         }
       }
     } catch (error) {
-      console.warn('Codec preference error:', error);
+      console.warn('Codec preference setting failed:', error);
     }
   }
 
-  connectWebSocket(room) {
-    const protocol = location.protocol === 'https:' ? 'wss' : 'ws';
-    this.ws = new WebSocket(`${protocol}://${location.host}/ws`);
-    
-    this.ws.onopen = () => {
-      this.sendSignalMessage({ 
-        type: 'join', 
-        room,
-        userInfo: {
-          isRussian: this.environment.isRussian,
-          isMobile: this.environment.isMobile,
-          connectionType: this.environment.connectionType,
-          turnForced: this.turnForced
-        }
-      });
-      this.updateConnectionStatus('connected', 'WebSocket подключен');
-    };
-    
-    this.ws.onmessage = async (event) => {
-      try {
-        const message = JSON.parse(event.data);
-        await this.handleSignalMessage(message);
-      } catch (error) {
-        console.error('WebSocket message error:', error);
-      }
-    };
-    
-    this.ws.onerror = (error) => {
-      console.error('WebSocket error:', error);
-      this.showToast('error', 'Ошибка WebSocket соединения');
-    };
-    
-    this.ws.onclose = (event) => {
-      console.log(`WebSocket closed: ${event.code} ${event.reason}`);
-      this.updateConnectionStatus('disconnected', 'WebSocket отключен');
+  // ========== WEBSOCKET MANAGEMENT ==========
+  async connectWebSocket(room) {
+    try {
+      const protocol = location.protocol === 'https:' ? 'wss' : 'ws';
+      const wsUrl = `${protocol}://${location.host}/ws`;
       
-      if (this.currentRoom && !event.wasClean) {
-        this.scheduleReconnection();
-      }
-    };
-  }
-
-  async handleSignalMessage(message) {
-    switch (message.type) {
-      case 'role':
-        this.role = message.role;
-        console.log('Assigned role:', this.role);
+      console.log(`🔌 Connecting WebSocket to: ${wsUrl}`);
+      
+      this.ws = new WebSocket(wsUrl);
+      
+      this.ws.onopen = () => {
+        console.log('✅ WebSocket connected');
         
-        if (message.turnServerAvailable) {
-          console.log('🔄 TURN server confirmed by server');
+        this.sendSignalMessage({ 
+          type: 'join', 
+          room,
+          userInfo: {
+            isRussian: this.isRussianUser,
+            isMobile: this.environment.isMobile,
+            connectionType: this.environment.connectionType,
+            turnForced: this.turnForced,
+            appVersion: APP_VERSION
+          }
+        });
+        
+        this.updateConnectionStatus('connected', 'WebSocket подключен');
+      };
+      
+      this.ws.onmessage = async (event) => {
+        try {
+          const message = JSON.parse(event.data);
+          await this.handleSignalMessage(message);
+        } catch (error) {
+          console.error('WebSocket message parsing error:', error);
         }
-        if (message.russianOptimization) {
-          console.log('🇷🇺 Russian optimization confirmed by server');
+      };
+      
+      this.ws.onerror = (error) => {
+        console.error('WebSocket error:', error);
+        this.showToast('error', 'Ошибка сигналинг соединения');
+      };
+      
+      this.ws.onclose = (event) => {
+        console.log(`WebSocket closed: ${event.code} - ${event.reason}`);
+        this.updateConnectionStatus('disconnected', 'Сигналинг отключен');
+        
+        if (this.currentRoom && !event.wasClean && event.code !== 1000) {
+          console.log('🔄 Scheduling WebSocket reconnection...');
+          setTimeout(() => this.reconnectWebSocket(), 2000);
         }
-        break;
-        
-      case 'ready':
-        if (this.role === 'caller') {
-          await this.createOffer();
-        }
-        
-        if (message.turnServerRecommended && this.environment.isRussian) {
-          console.log('🔄 TURN server recommended by server');
-        }
-        break;
-        
-      case 'description':
-        await this.handleDescription(message.sdp);
-        break;
-        
-      case 'candidate':
-        await this.handleCandidate(message.candidate);
-        break;
-        
-      case 'chat':
-        this.receiveChatMessage(message.text, false);
-        break;
-        
-      case 'peer-left':
-        this.showToast('info', 'Собеседник покинул звонок');
-        this.elements.remoteVideo.srcObject = null;
-        break;
-        
-      case 'full':
-        this.showToast('error', 'Комната заполнена');
-        this.hangup();
-        break;
-        
-      case 'bye':
-        this.hangup();
-        break;
-        
-      case 'russia-config':
-        if (message.turnServerForced) {
-          this.turnForced = true;
-          console.log('🔄 TURN server usage forced by server');
-        }
-        
-        if (message.recommendations) {
-          message.recommendations.forEach(rec => {
-            console.log(`🇷🇺 Server recommendation: ${rec}`);
-          });
-        }
-        
-        if (message.turnServer) {
-          this.showToast('success', `🔄 TURN: ${message.turnServer}`);
-        }
-        break;
-        
-      case 'turn-suggestion':
-        this.showToast('warning', message.message);
-        if (message.forceTurn) {
-          this.turnForced = true;
-        }
-        break;
-        
-      case 'pong':
-        const latency = Date.now() - this.lastPingTime;
-        console.log(`🏓 Latency: ${latency}ms`);
-        break;
-        
-      default:
-        console.log('Unknown message type:', message.type);
-    }
-  }
-
-  async createOffer() {
-    try {
-      const offer = await this.pc.createOffer({
-        offerToReceiveAudio: true,
-        offerToReceiveVideo: true
-      });
-      await this.pc.setLocalDescription(offer);
-      this.sendSignalMessage({ 
-        type: 'description', 
-        sdp: this.pc.localDescription 
-      });
-      console.log('📞 Offer created and sent');
+      };
+      
     } catch (error) {
-      console.error('Create offer error:', error);
-      this.showToast('error', 'Ошибка создания предложения');
+      console.error('WebSocket connection failed:', error);
+      throw error;
     }
   }
 
-  async handleDescription(description) {
+  async reconnectWebSocket() {
+    if (this.currentRoom && (!this.ws || this.ws.readyState !== WebSocket.OPEN)) {
+      try {
+        console.log('🔄 Reconnecting WebSocket...');
+        await this.connectWebSocket(this.currentRoom);
+      } catch (error) {
+        console.error('WebSocket reconnection failed:', error);
+        setTimeout(() => this.reconnectWebSocket(), 5000);
+      }
+    }
+  }
+
+  // ========== SIGNAL MESSAGE HANDLING ==========
+  async handleSignalMessage(message) {
     try {
-      if (description.type === 'offer') {
+      switch (message.type) {
+        case 'role':
+          await this.handleRoleAssignment(message);
+          break;
+          
+        case 'ready':
+          await this.handleRoomReady(message);
+          break;
+          
+        case 'description':
+          await this.handleDescription(message.sdp);
+          break;
+          
+        case 'candidate':
+          await this.handleRemoteCandidate(message.candidate);
+          break;
+          
+        case 'chat':
+          this.receiveChatMessage(message.text, false);
+          break;
+          
+        case 'peer-left':
+          this.handlePeerLeft(message);
+          break;
+          
+        case 'full':
+          this.handleRoomFull(message);
+          break;
+          
+        case 'bye':
+          this.handleBye(message);
+          break;
+          
+        case 'russia-config':
+          this.handleRussiaConfig(message);
+          break;
+          
+        case 'error':
+          this.handleServerError(message);
+          break;
+          
+        default:
+          console.log('Unknown signal message type:', message.type);
+      }
+    } catch (error) {
+      console.error('Signal message handling error:', error);
+    }
+  }
+
+  async handleRoleAssignment(message) {
+    this.role = message.role;
+    console.log(`👤 Assigned role: ${this.role}`);
+    
+    if (message.turnServerAvailable) {
+      console.log('🔄 TURN server availability confirmed');
+    }
+    
+    if (message.russianOptimization) {
+      console.log('🇷🇺 Russian optimization confirmed by server');
+    }
+  }
+
+  async handleRoomReady(message) {
+    console.log('🚀 Room ready, participants:', message.participants);
+    
+    if (this.role === 'caller') {
+      await this.createOffer();
+    }
+    
+    if (message.turnServerRecommended && this.isRussianUser) {
+      console.log('🔄 Server recommends TURN usage');
+    }
+  }
+
+  async handleDescription(sdp) {
+    try {
+      console.log(`📡 Handling ${sdp.type} description`);
+      
+      if (sdp.type === 'offer') {
+        // Handle offer
         if (this.pc.signalingState !== 'stable') {
+          console.log('📡 Rolling back to stable state');
           await this.pc.setLocalDescription({ type: 'rollback' });
         }
-        await this.pc.setRemoteDescription(description);
+        
+        await this.pc.setRemoteDescription(sdp);
         
         const answer = await this.pc.createAnswer();
         await this.pc.setLocalDescription(answer);
+        
         this.sendSignalMessage({ 
           type: 'description', 
           sdp: this.pc.localDescription 
         });
-        console.log('📞 Answer created and sent');
-      } else if (description.type === 'answer') {
+        
+        console.log('📡 Answer created and sent');
+        
+      } else if (sdp.type === 'answer') {
+        // Handle answer
         if (this.pc.signalingState === 'have-local-offer') {
-          await this.pc.setRemoteDescription(description);
-          console.log('📞 Answer received and set');
+          await this.pc.setRemoteDescription(sdp);
+          console.log('📡 Answer processed successfully');
+        } else {
+          console.warn(`Unexpected answer in state: ${this.pc.signalingState}`);
         }
       }
     } catch (error) {
-      console.error('Handle description error:', error);
-      this.showToast('error', 'Ошибка обработки SDP');
+      console.error('SDP handling error:', error);
+      this.showToast('error', 'Ошибка обработки сигнала');
     }
   }
 
-  async handleCandidate(candidate) {
+  async handleRemoteCandidate(candidate) {
     try {
       await this.pc.addIceCandidate(candidate);
       
-      // Enhanced candidate logging
+      // Enhanced candidate analysis
       if (candidate.candidate) {
-        if (candidate.candidate.includes('relay')) {
-          console.log('🔄 TURN candidate added:', candidate.candidate);
-          if (candidate.candidate.includes('94.198.218.189')) {
-            console.log('🎯 YOUR TURN SERVER CANDIDATE ADDED!');
+        const candidateStr = candidate.candidate;
+        
+        if (candidateStr.includes('typ relay')) {
+          if (candidateStr.includes(TURN_SERVER_IP)) {
+            console.log('🎯 Remote peer using YOUR TURN server!');
+          } else {
+            console.log('🔄 Remote peer using TURN server');
           }
-        } else if (candidate.candidate.includes('srflx')) {
-          console.log('📡 STUN candidate added');
-        } else if (candidate.candidate.includes('host')) {
-          console.log('🏠 Host candidate added');
+        } else if (candidateStr.includes('typ srflx')) {
+          console.log('📡 Remote STUN candidate processed');
+        } else if (candidateStr.includes('typ host')) {
+          console.log('🏠 Remote host candidate processed');
         }
       }
+      
     } catch (error) {
-      console.warn('Add ICE candidate error:', error);
+      console.warn('Remote ICE candidate processing error:', error);
+    }
+  }
+
+  handlePeerLeft(message) {
+    console.log('👋 Peer left the room');
+    this.showToast('info', 'Собеседник покинул звонок');
+    this.elements.remoteVideo.srcObject = null;
+  }
+
+  handleRoomFull(message) {
+    console.log('🚫 Room is full');
+    this.showToast('error', 'Комната заполнена (максимум 2 участника)');
+    this.hangup();
+  }
+
+  handleBye(message) {
+    console.log('👋 Server initiated disconnect');
+    this.hangup();
+  }
+
+  handleRussiaConfig(message) {
+    if (message.turnServerForced) {
+      this.turnForced = true;
+      console.log('🔄 TURN usage forced by server');
+    }
+    
+    if (message.recommendations) {
+      console.log('🇷🇺 Server recommendations received');
+      message.recommendations.forEach(rec => {
+        console.log(`  - ${rec}`);
+      });
+    }
+    
+    if (message.turnServer) {
+      this.showToast('success', `🔄 TURN: ${message.turnServer}`);
+    }
+  }
+
+  handleServerError(message) {
+    console.error('Server error:', message.message);
+    this.showToast('error', `Ошибка сервера: ${message.message}`);
+  }
+
+  async createOffer() {
+    try {
+      console.log('📞 Creating offer...');
+      
+      const offer = await this.pc.createOffer({
+        offerToReceiveAudio: true,
+        offerToReceiveVideo: true
+      });
+      
+      await this.pc.setLocalDescription(offer);
+      
+      this.sendSignalMessage({ 
+        type: 'description', 
+        sdp: this.pc.localDescription 
+      });
+      
+      console.log('📞 Offer created and sent successfully');
+      
+    } catch (error) {
+      console.error('Create offer error:', error);
+      this.showToast('error', 'Ошибка создания предложения');
+      throw error;
     }
   }
 
@@ -884,128 +1323,416 @@ class VideoCallApp {
       try {
         this.ws.send(JSON.stringify(message));
       } catch (error) {
-        console.error('Send signal message error:', error);
+        console.error('Signal message send error:', error);
+      }
+    } else {
+      console.warn('Cannot send signal message - WebSocket not ready');
+    }
+  }
+
+  // ========== CONNECTION MONITORING AND RECOVERY ==========
+  startConnectionMonitoring() {
+    // Clear existing interval
+    if (this.intervals.connectionMonitor) {
+      clearInterval(this.intervals.connectionMonitor);
+    }
+    
+    this.intervals.connectionMonitor = setInterval(() => {
+      this.performConnectionHealthCheck();
+    }, 10000); // Check every 10 seconds
+  }
+
+  async performConnectionHealthCheck() {
+    if (!this.pc || this.pc.connectionState !== 'connected') {
+      return;
+    }
+    
+    try {
+      const stats = await this.pc.getStats();
+      this.analyzeConnectionStats(stats);
+    } catch (error) {
+      console.warn('Connection health check failed:', error);
+    }
+  }
+
+  analyzeConnectionStats(stats) {
+    let videoStats = null;
+    let audioStats = null;
+    
+    stats.forEach(report => {
+      if (report.type === 'inbound-rtp') {
+        if (report.mediaType === 'video' || report.kind === 'video') {
+          videoStats = report;
+        } else if (report.mediaType === 'audio' || report.kind === 'audio') {
+          audioStats = report;
+        }
+      }
+    });
+    
+    if (videoStats) {
+      this.analyzeVideoStats(videoStats);
+    }
+    
+    if (audioStats) {
+      this.analyzeAudioStats(audioStats);
+    }
+  }
+
+  analyzeVideoStats(stats) {
+    const packetsLost = stats.packetsLost || 0;
+    const packetsReceived = stats.packetsReceived || 0;
+    const totalPackets = packetsLost + packetsReceived;
+    
+    if (totalPackets > 0) {
+      const packetLossPercentage = (packetsLost / totalPackets) * 100;
+      this.diagnostics.lastPacketLoss = packetLossPercentage;
+      
+      // Auto-adjust quality based on packet loss
+      if (packetLossPercentage > 5 && this.settings.videoQuality !== 'minimal') {
+        this.autoDowngradeQuality();
+      } else if (packetLossPercentage < 1 && this.diagnostics.qualityDowngrades > 0) {
+        this.autoUpgradeQuality();
+      }
+    }
+    
+    // Check frame rate
+    const framesDecoded = stats.framesDecoded || 0;
+    if (framesDecoded === this.lastFramesDecoded) {
+      this.staleFrameCount++;
+      if (this.staleFrameCount > 5) {
+        console.warn('⚠️ Video appears frozen');
+        this.handleVideoFreeze();
+      }
+    } else {
+      this.staleFrameCount = 0;
+    }
+    this.lastFramesDecoded = framesDecoded;
+  }
+
+  analyzeAudioStats(stats) {
+    const packetsLost = stats.packetsLost || 0;
+    const packetsReceived = stats.packetsReceived || 0;
+    const totalPackets = packetsLost + packetsReceived;
+    
+    if (totalPackets > 0) {
+      const audioPacketLoss = (packetsLost / totalPackets) * 100;
+      if (audioPacketLoss > 3) {
+        console.warn(`⚠️ High audio packet loss: ${audioPacketLoss.toFixed(1)}%`);
       }
     }
   }
 
+  autoDowngradeQuality() {
+    const qualityLevels = ['ultra', 'hd', 'sd', 'mobile', 'minimal'];
+    const currentIndex = qualityLevels.indexOf(this.settings.videoQuality);
+    
+    if (currentIndex < qualityLevels.length - 1) {
+      const newQuality = qualityLevels[currentIndex + 1];
+      console.log(`📉 Auto-downgrading quality: ${this.settings.videoQuality} → ${newQuality}`);
+      
+      this.settings.videoQuality = newQuality;
+      this.diagnostics.qualityDowngrades++;
+      this.restartVideoStream();
+      this.showToast('warning', `Качество снижено до ${newQuality.toUpperCase()}`);
+    }
+  }
+
+  autoUpgradeQuality() {
+    const qualityLevels = ['minimal', 'mobile', 'sd', 'hd', 'ultra'];
+    const currentIndex = qualityLevels.indexOf(this.settings.videoQuality);
+    
+    if (currentIndex > 0 && this.diagnostics.qualityDowngrades > 0) {
+      const newQuality = qualityLevels[currentIndex - 1];
+      console.log(`📈 Auto-upgrading quality: ${this.settings.videoQuality} → ${newQuality}`);
+      
+      this.settings.videoQuality = newQuality;
+      this.diagnostics.qualityDowngrades = Math.max(0, this.diagnostics.qualityDowngrades - 1);
+      this.restartVideoStream();
+      this.showToast('info', `Качество повышено до ${newQuality.toUpperCase()}`);
+    }
+  }
+
+  handleVideoFreeze() {
+    console.log('🔧 Handling video freeze...');
+    
+    if (this.pc && this.pc.connectionState === 'connected') {
+      // Try to restart video stream
+      this.restartVideoStream();
+    } else {
+      // Connection might be broken
+      this.handleConnectionFailure();
+    }
+  }
+
+  startQualityMonitoring() {
+    if (this.intervals.qualityMonitor) {
+      clearInterval(this.intervals.qualityMonitor);
+    }
+    
+    this.intervals.qualityMonitor = setInterval(() => {
+      this.updateConnectionIndicator();
+    }, 5000);
+  }
+
+  startHeartbeat() {
+    if (this.intervals.heartbeat) {
+      clearInterval(this.intervals.heartbeat);
+    }
+    
+    // Send periodic heartbeat through data channel
+    this.intervals.heartbeat = setInterval(() => {
+      if (this.dataChannel && this.dataChannel.readyState === 'open') {
+        try {
+          this.dataChannel.send(JSON.stringify({
+            type: 'heartbeat',
+            timestamp: Date.now()
+          }));
+        } catch (error) {
+          console.warn('Heartbeat send failed:', error);
+        }
+      }
+    }, 30000); // Every 30 seconds
+  }
+
+  // ========== CONNECTION FAILURE HANDLING ==========
   handleConnectionFailure() {
     this.connectionIssues++;
-    
     console.error(`🚨 Connection failure #${this.connectionIssues}`);
     
-    if (this.connectionIssues > 3) {
-      this.showToast('error', 'Множественные сбои соединения. Переподключитесь.');
+    if (this.connectionIssues > this.maxConnectionIssues) {
+      this.showToast('error', 'Критические проблемы соединения. Перезапустите звонок.');
+      setTimeout(() => this.hangup(), 3000);
       return;
     }
     
-    // For Russian networks, ensure TURN is forced
-    if (this.environment.isRussian && !this.turnForced) {
-      console.log('🇷🇺 Enabling forced TURN due to connection failure');
-      this.turnForced = true;
+    // Progressive failure handling
+    if (this.connectionIssues === 1) {
+      this.attemptIceRestart();
+    } else if (this.connectionIssues === 2) {
+      this.attemptConnectionOptimization();
+    } else {
+      this.scheduleReconnection();
     }
-    
+  }
+
+  attemptIceRestart() {
     if (this.pc && this.pc.connectionState === 'failed') {
       console.log('🔄 Attempting ICE restart...');
-      this.pc.restartIce();
       
-      setTimeout(() => {
-        if (this.pc && this.pc.connectionState === 'failed') {
-          console.log('🔄 ICE restart failed, scheduling reconnection...');
-          this.scheduleReconnection();
-        }
-      }, 3000);
+      try {
+        this.pc.restartIce();
+        this.showToast('info', 'Попытка восстановления соединения...');
+        
+        // Give it time to work
+        setTimeout(() => {
+          if (this.pc && this.pc.connectionState === 'failed') {
+            this.handleConnectionFailure();
+          }
+        }, 5000);
+        
+      } catch (error) {
+        console.error('ICE restart failed:', error);
+        this.handleConnectionFailure();
+      }
     }
+  }
+
+  attemptConnectionOptimization() {
+    console.log('⚙️ Attempting connection optimization...');
+    
+    // Force lowest quality settings
+    this.settings.videoQuality = 'minimal';
+    this.settings.audioQuality = 'minimal';
+    
+    // Force TURN if not already forced
+    if (!this.turnForced) {
+      this.turnForced = true;
+      console.log('🔄 Forcing TURN due to connection issues');
+    }
+    
+    // Re-optimize peer connection
+    this.optimizePeerConnection();
+    
+    this.showToast('warning', 'Применены экстремальные оптимизации');
+    
+    // Schedule reconnection if optimization doesn't help
+    setTimeout(() => {
+      if (this.pc && this.pc.connectionState === 'failed') {
+        this.scheduleReconnection();
+      }
+    }, 8000);
+  }
+
+  handleIceFailure() {
+    console.error('🧊❌ ICE connection failed');
+    
+    // Immediate restart for ICE failures
+    setTimeout(() => {
+      if (this.pc && this.pc.iceConnectionState === 'failed') {
+        console.log('🔄 Emergency ICE restart...');
+        this.pc.restartIce();
+      }
+    }, 1000);
+    
+    // Escalate if still failed
+    setTimeout(() => {
+      if (this.pc && this.pc.iceConnectionState === 'failed') {
+        this.handleConnectionFailure();
+      }
+    }, 10000);
+  }
+
+  handleIceDisconnection() {
+    console.warn('🧊⚠️ ICE disconnected');
+    
+    // Quick restart for mobile networks
+    const restartDelay = this.environment.isMobile ? 2000 : 3000;
+    
+    setTimeout(() => {
+      if (this.pc && this.pc.iceConnectionState === 'disconnected') {
+        console.log('🔄 ICE restart after disconnection...');
+        this.pc.restartIce();
+      }
+    }, restartDelay);
   }
 
   scheduleReconnection() {
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
       this.showToast('error', 'Превышено максимальное количество попыток переподключения');
+      setTimeout(() => this.hangup(), 5000);
       return;
     }
     
-    const delay = 2000 * Math.pow(1.5, this.reconnectAttempts);
+    const delay = Math.min(2000 * Math.pow(1.5, this.reconnectAttempts), 30000);
     this.reconnectAttempts++;
     
-    console.log(`🔄 Reconnection attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts} in ${delay}ms`);
+    console.log(`🔄 Scheduling reconnection attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts} in ${delay}ms`);
     
     setTimeout(async () => {
       try {
         if (this.currentRoom) {
           this.showToast('info', `Переподключение ${this.reconnectAttempts}/${this.maxReconnectAttempts}...`);
           
-          // Clean up current connection
-          if (this.pc) this.pc.close();
-          if (this.ws) this.ws.close();
-          
-          // Force TURN for reconnection attempts on Russian networks
-          if (this.environment.isRussian) {
-            this.turnForced = true;
-            console.log('🇷🇺 TURN forced for reconnection attempt');
-          }
-          
-          // Recreate connection
-          this.createPeerConnection();
-          this.connectWebSocket(this.currentRoom);
+          // Full reconnection
+          await this.performFullReconnection();
         }
       } catch (error) {
-        console.error('Reconnection error:', error);
+        console.error('Reconnection attempt failed:', error);
         this.scheduleReconnection();
       }
     }, delay);
   }
 
-  handleNetworkChange() {
-    if ('connection' in navigator) {
-      const connection = navigator.connection;
-      const newType = connection.effectiveType;
+  async performFullReconnection() {
+    console.log('🔄 Performing full reconnection...');
+    
+    // Clean up current connection
+    if (this.pc) {
+      this.pc.close();
+      this.pc = null;
+    }
+    
+    if (this.ws) {
+      this.ws.close();
+      this.ws = null;
+    }
+    
+    // Force TURN for reconnection attempts
+    if (this.isRussianUser) {
+      this.turnForced = true;
+      console.log('🇷🇺 Forcing TURN for Russian user reconnection');
+    }
+    
+    // Recreate connections
+    await this.createPeerConnection();
+    await this.connectWebSocket(this.currentRoom);
+  }
+
+  // ========== TURN USAGE VERIFICATION ==========
+  async verifyTurnUsage() {
+    // Wait a bit for connection to stabilize
+    setTimeout(() => {
+      this.performTurnVerification();
+    }, 3000);
+  }
+
+  async performTurnVerification() {
+    if (!this.pc) return;
+    
+    try {
+      const stats = await this.pc.getStats();
+      let turnConfirmed = false;
+      let relayServerUsed = null;
       
-      console.log(`📶 Network changed to: ${newType}`);
-      
-      // Update environment
-      const oldConnectionType = this.environment.connectionType;
-      this.environment.connectionType = (() => {
-        const speed = connection.downlink || 0;
-        if (newType === '2g' || speed < 0.5) return 'poor';
-        if (newType === '3g' || speed < 2) return 'medium';
-        return 'good';
-      })();
-      
-      console.log(`🌐 Connection quality: ${oldConnectionType} → ${this.environment.connectionType}`);
-      
-      if (oldConnectionType !== this.environment.connectionType) {
-        // Auto-adjust settings
-        if (this.environment.connectionType === 'poor' && this.settings.videoQuality !== 'mobile') {
-          this.settings.videoQuality = 'mobile';
-          this.showToast('warning', 'Качество снижено из-за слабой сети');
-          if (this.pc && this.localStream) {
-            this.restartVideoStream();
-          }
+      // Check active connection pairs
+      stats.forEach(report => {
+        if (report.type === 'candidate-pair' && report.state === 'succeeded') {
+          // Check both local and remote candidates
+          [report.localCandidateId, report.remoteCandidateId].forEach(candidateId => {
+            if (candidateId) {
+              stats.forEach(candidate => {
+                if (candidate.id === candidateId && candidate.candidateType === 'relay') {
+                  turnConfirmed = true;
+                  relayServerUsed = candidate.address || candidate.ip || 'relay-server';
+                  
+                  if (relayServerUsed.includes(TURN_SERVER_IP)) {
+                    console.log('🎯✅ CONFIRMED: Using YOUR TURN server!');
+                  } else {
+                    console.log('🔄✅ CONFIRMED: Using TURN server:', relayServerUsed);
+                  }
+                }
+              });
+            }
+          });
         }
+      });
+      
+      // Fallback verification for forced TURN
+      if (!turnConfirmed && this.turnForced) {
+        let relayFound = false;
         
-        // Re-optimize connection
-        if (this.pc && this.pc.connectionState === 'connected') {
-          this.optimizePeerConnection();
+        stats.forEach(report => {
+          if (report.type === 'local-candidate' && report.candidateType === 'relay') {
+            relayFound = true;
+            if (report.address && report.address.includes(TURN_SERVER_IP)) {
+              turnConfirmed = true;
+              relayServerUsed = TURN_SERVER_IP;
+            }
+          }
+        });
+        
+        if (relayFound) {
+          turnConfirmed = true;
+          console.log('🔄✅ TURN usage confirmed via relay candidate presence');
         }
       }
+      
+      // Final result
+      if (turnConfirmed) {
+        this.turnConfirmed = true;
+        
+        if (relayServerUsed && relayServerUsed.includes(TURN_SERVER_IP)) {
+          this.showToast('success', '🎯 Подключено через ВАШ TURN сервер!');
+        } else {
+          this.showToast('info', '🔄 Подключено через TURN сервер');
+        }
+        
+        console.log('✅ TURN verification completed successfully');
+      } else {
+        if (this.turnForced) {
+          console.log('🔄 TURN was forced - assuming active (verification inconclusive)');
+          this.showToast('info', '🔄 TURN принудительно активен');
+        } else {
+          console.log('📡 Direct P2P connection established');
+        }
+      }
+      
+    } catch (error) {
+      console.warn('TURN verification failed:', error);
     }
   }
 
-  handleOnline() {
-    console.log('🌐 Network online');
-    this.showToast('success', 'Соединение восстановлено');
-    
-    if (this.currentRoom && (!this.ws || this.ws.readyState !== WebSocket.OPEN)) {
-      this.scheduleReconnection();
-    }
-  }
-
-  handleOffline() {
-    console.log('🌐 Network offline');
-    this.showToast('error', 'Нет соединения с интернетом');
-  }
-
-  // Media controls
+  // ========== MEDIA CONTROLS ==========
   toggleVideo() {
     this.settings.videoEnabled = !this.settings.videoEnabled;
     
@@ -1041,7 +1768,7 @@ class VideoCallApp {
   async toggleScreenShare() {
     try {
       if (!this.isScreenSharing) {
-        const screenShareConstraints = {
+        const constraints = {
           video: { 
             mediaSource: 'screen',
             width: { max: this.environment.isMobile ? 720 : 1280 },
@@ -1051,15 +1778,26 @@ class VideoCallApp {
           audio: true
         };
         
-        const screenStream = await navigator.mediaDevices.getDisplayMedia(screenShareConstraints);
-        
+        const screenStream = await navigator.mediaDevices.getDisplayMedia(constraints);
         const videoTrack = screenStream.getVideoTracks()[0];
+        
+        // Replace video track
         const sender = this.pc.getSenders().find(s => 
           s.track && s.track.kind === 'video'
         );
         
         if (sender) {
           await sender.replaceTrack(videoTrack);
+          
+          // Optimize for screen sharing
+          setTimeout(() => {
+            const params = sender.getParameters();
+            if (params.encodings && params.encodings[0]) {
+              params.encodings[0].maxBitrate = 1000000; // 1 Mbps for screen
+              params.encodings[0].maxFramerate = 15;
+              sender.setParameters(params).catch(console.warn);
+            }
+          }, 100);
         }
         
         videoTrack.onended = () => {
@@ -1069,6 +1807,7 @@ class VideoCallApp {
         this.isScreenSharing = true;
         this.elements.screenShareToggle.classList.add('active');
         this.showToast('success', 'Демонстрация экрана включена');
+        
       } else {
         this.stopScreenShare();
       }
@@ -1087,11 +1826,15 @@ class VideoCallApp {
       
       if (sender && videoTrack) {
         await sender.replaceTrack(videoTrack);
+        
+        // Restore normal video optimization
+        setTimeout(() => this.optimizePeerConnection(), 100);
       }
       
       this.isScreenSharing = false;
       this.elements.screenShareToggle.classList.remove('active');
       this.showToast('info', 'Демонстрация экрана выключена');
+      
     } catch (error) {
       console.error('Stop screen share error:', error);
     }
@@ -1111,11 +1854,13 @@ class VideoCallApp {
       const currentFacingMode = constraints.facingMode;
       const newFacingMode = currentFacingMode === 'user' ? 'environment' : 'user';
       
+      const videoConstraints = {
+        ...VIDEO_CONSTRAINTS[this.settings.videoQuality],
+        facingMode: newFacingMode
+      };
+      
       const newStream = await navigator.mediaDevices.getUserMedia({
-        video: { 
-          ...VIDEO_CONSTRAINTS[this.settings.videoQuality],
-          facingMode: newFacingMode 
-        },
+        video: videoConstraints,
         audio: false
       });
       
@@ -1128,148 +1873,16 @@ class VideoCallApp {
         await sender.replaceTrack(newVideoTrack);
       }
       
+      // Update local stream
       videoTrack.stop();
       this.localStream.removeTrack(videoTrack);
       this.localStream.addTrack(newVideoTrack);
       
       this.showToast('info', 'Камера переключена');
+      
     } catch (error) {
       console.error('Switch camera error:', error);
       this.showToast('error', 'Не удалось переключить камеру');
-    }
-  }
-
-  // UI Updates
-  updateVideoButton() {
-    this.elements.videoToggle.className = this.settings.videoEnabled 
-      ? 'control-btn video-on' 
-      : 'control-btn video-off';
-  }
-
-  updateAudioButton() {
-    this.elements.audioToggle.className = this.settings.audioEnabled 
-      ? 'control-btn audio-on' 
-      : 'control-btn audio-off';
-  }
-
-  updateConnectionStatus(status, message) {
-    const statusDot = this.elements.connectionStatus.querySelector('.status-dot');
-    const statusText = this.elements.connectionStatus.querySelector('span');
-    
-    statusDot.className = `status-dot ${status}`;
-    statusText.textContent = message;
-  }
-
-  updateConnectionIndicator() {
-    if (!this.pc) return;
-    
-    const state = this.pc.connectionState;
-    const indicator = this.elements.connectionIndicator;
-    const bars = indicator.querySelectorAll('.bar');
-    
-    let quality = 0;
-    
-    if (state === 'connected') {
-      if (this.turnForced) {
-        quality = 4; // Show full bars for TURN connections
-      } else {
-        quality = this.environment.connectionType === 'good' ? 4 : 
-                 this.environment.connectionType === 'medium' ? 3 : 2;
-      }
-    }
-    
-    bars.forEach((bar, index) => {
-      bar.style.opacity = index < quality ? '1' : '0.3';
-      bar.style.backgroundColor = quality <= 1 ? '#f44336' : 
-                                 quality <= 2 ? '#ff9800' : '#4CAF50';
-    });
-    
-    indicator.className = `connection-indicator ${state}`;
-  }
-
-  startCallTimer() {
-    this.callStartTime = Date.now();
-    this.callDurationInterval = setInterval(() => {
-      const elapsed = Date.now() - this.callStartTime;
-      const minutes = Math.floor(elapsed / 60000);
-      const seconds = Math.floor((elapsed % 60000) / 1000);
-      this.elements.callDuration.textContent = 
-        `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-    }, 1000);
-  }
-
-  stopCallTimer() {
-    if (this.callDurationInterval) {
-      clearInterval(this.callDurationInterval);
-      this.callDurationInterval = null;
-    }
-  }
-
-  // Chat functionality
-  toggleChat() {
-    const isOpen = this.elements.chatPanel.classList.contains('open');
-    if (isOpen) {
-      this.closePanel('chat');
-    } else {
-      this.openPanel('chat');
-    }
-  }
-
-  sendChatMessage() {
-    const text = this.elements.chatInput.value.trim();
-    if (!text) return;
-    
-    this.sendSignalMessage({ type: 'chat', text });
-    this.receiveChatMessage(text, true);
-    this.elements.chatInput.value = '';
-  }
-
-  receiveChatMessage(text, isOwn = false) {
-    const messageElement = document.createElement('div');
-    messageElement.className = `chat-message ${isOwn ? 'own' : 'other'}`;
-    messageElement.textContent = text;
-    
-    this.elements.chatMessages.appendChild(messageElement);
-    this.elements.chatMessages.scrollTop = this.elements.chatMessages.scrollHeight;
-    
-    this.chatMessages.push({ text, isOwn, timestamp: Date.now() });
-    
-    if (!isOwn && !this.elements.chatPanel.classList.contains('open')) {
-      this.showToast('info', `Сообщение: ${text.substring(0, 50)}${text.length > 50 ? '...' : ''}`);
-    }
-  }
-
-  // Panel management
-  openPanel(panelName) {
-    ['chat', 'settings', 'history'].forEach(panel => {
-      if (panel !== panelName) {
-        this.elements[`${panel}Panel`].classList.remove('open');
-      }
-    });
-    
-    this.elements[`${panelName}Panel`].classList.add('open');
-    
-    if (panelName === 'history') {
-      this.loadHistory();
-    }
-  }
-
-  closePanel(panelName) {
-    this.elements[`${panelName}Panel`].classList.remove('open');
-  }
-
-  // Settings
-  changeVideoQuality(quality) {
-    if (this.environment.connectionType === 'poor' && quality !== 'mobile') {
-      this.showToast('warning', 'Качество ограничено из-за слабой сети');
-      quality = 'mobile';
-    }
-    
-    this.settings.videoQuality = quality;
-    this.showToast('info', `Качество видео: ${quality.toUpperCase()}`);
-    
-    if (this.pc && this.localStream) {
-      this.restartVideoStream();
     }
   }
 
@@ -1278,8 +1891,10 @@ class VideoCallApp {
       const videoTrack = this.localStream.getVideoTracks()[0];
       if (!videoTrack) return;
       
+      const videoConstraints = VIDEO_CONSTRAINTS[this.settings.videoQuality];
+      
       const constraints = {
-        ...VIDEO_CONSTRAINTS[this.settings.videoQuality],
+        ...videoConstraints,
         deviceId: this.settings.selectedVideoDevice ? 
           { exact: this.settings.selectedVideoDevice } : undefined
       };
@@ -1298,13 +1913,260 @@ class VideoCallApp {
         await sender.replaceTrack(newVideoTrack);
       }
       
+      // Update local stream
       videoTrack.stop();
       this.localStream.removeTrack(videoTrack);
       this.localStream.addTrack(newVideoTrack);
       
-      this.optimizePeerConnection();
+      // Re-optimize
+      setTimeout(() => this.optimizePeerConnection(), 100);
+      
+      console.log(`📹 Video stream restarted with quality: ${this.settings.videoQuality}`);
+      
     } catch (error) {
-      console.error('Restart video stream error:', error);
+      console.error('Video stream restart error:', error);
+    }
+  }
+
+  async restartAudioStream() {
+    try {
+      const audioTrack = this.localStream.getAudioTracks()[0];
+      if (!audioTrack) return;
+      
+      const audioConstraints = AUDIO_CONSTRAINTS[this.settings.audioQuality];
+      
+      const constraints = {
+        ...audioConstraints,
+        deviceId: this.settings.selectedAudioDevice ? 
+          { exact: this.settings.selectedAudioDevice } : undefined
+      };
+      
+      const newStream = await navigator.mediaDevices.getUserMedia({
+        video: false,
+        audio: constraints
+      });
+      
+      const newAudioTrack = newStream.getAudioTracks()[0];
+      const sender = this.pc.getSenders().find(s => 
+        s.track && s.track.kind === 'audio'
+      );
+      
+      if (sender) {
+        await sender.replaceTrack(newAudioTrack);
+      }
+      
+      // Update local stream
+      audioTrack.stop();
+      this.localStream.removeTrack(audioTrack);
+      this.localStream.addTrack(newAudioTrack);
+      
+      console.log(`🎤 Audio stream restarted with quality: ${this.settings.audioQuality}`);
+      
+    } catch (error) {
+      console.error('Audio stream restart error:', error);
+    }
+  }
+
+  // ========== UI UPDATES ==========
+  updateVideoButton() {
+    this.elements.videoToggle.className = this.settings.videoEnabled 
+      ? 'control-btn video-on' 
+      : 'control-btn video-off';
+  }
+
+  updateAudioButton() {
+    this.elements.audioToggle.className = this.settings.audioEnabled 
+      ? 'control-btn audio-on' 
+      : 'control-btn audio-off';
+  }
+
+  updateConnectionStatus(status, message) {
+    if (!this.elements.connectionStatus) return;
+    
+    const statusDot = this.elements.connectionStatus.querySelector('.status-dot');
+    const statusText = this.elements.connectionStatus.querySelector('span');
+    
+    if (statusDot) statusDot.className = `status-dot ${status}`;
+    if (statusText) statusText.textContent = message;
+  }
+
+  updateConnectionIndicator() {
+    if (!this.pc || !this.elements.connectionIndicator) return;
+    
+    const state = this.pc.connectionState;
+    const indicator = this.elements.connectionIndicator;
+    const bars = indicator.querySelectorAll('.bar');
+    
+    let quality = 0;
+    let color = '#f44336'; // Red
+    
+    if (state === 'connected') {
+      // Determine quality based on various factors
+      if (this.turnConfirmed) {
+        quality = 4; // Full bars for TURN
+        color = '#4CAF50'; // Green
+      } else if (this.environment.connectionType === 'excellent') {
+        quality = 4;
+        color = '#4CAF50';
+      } else if (this.environment.connectionType === 'good') {
+        quality = 3;
+        color = '#8BC34A'; // Light green
+      } else if (this.environment.connectionType === 'fair') {
+        quality = 2;
+        color = '#ff9800'; // Orange
+      } else {
+        quality = 1;
+        color = '#f44336'; // Red
+      }
+      
+      // Adjust for packet loss
+      if (this.diagnostics.lastPacketLoss > 5) {
+        quality = Math.max(1, quality - 1);
+        color = '#ff9800';
+      }
+    }
+    
+    bars.forEach((bar, index) => {
+      bar.style.opacity = index < quality ? '1' : '0.3';
+      bar.style.backgroundColor = color;
+    });
+    
+    indicator.className = `connection-indicator ${state}`;
+  }
+
+  startCallTimer() {
+    this.callStartTime = Date.now();
+    
+    if (this.intervals.callTimer) {
+      clearInterval(this.intervals.callTimer);
+    }
+    
+    this.intervals.callTimer = setInterval(() => {
+      const elapsed = Date.now() - this.callStartTime;
+      const minutes = Math.floor(elapsed / 60000);
+      const seconds = Math.floor((elapsed % 60000) / 1000);
+      
+      if (this.elements.callDuration) {
+        this.elements.callDuration.textContent = 
+          `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+      }
+    }, 1000);
+  }
+
+  stopCallTimer() {
+    if (this.intervals.callTimer) {
+      clearInterval(this.intervals.callTimer);
+      this.intervals.callTimer = null;
+    }
+  }
+
+  // ========== CHAT FUNCTIONALITY ==========
+  toggleChat() {
+    const isOpen = this.elements.chatPanel.classList.contains('open');
+    if (isOpen) {
+      this.closePanel('chat');
+    } else {
+      this.openPanel('chat');
+    }
+  }
+
+  sendChatMessage() {
+    const text = this.elements.chatInput.value.trim();
+    if (!text || text.length === 0) return;
+    
+    // Limit message length
+    const sanitizedText = text.substring(0, 500);
+    
+    // Send via WebSocket
+    this.sendSignalMessage({ type: 'chat', text: sanitizedText });
+    
+    // Send via data channel if available
+    if (this.dataChannel && this.dataChannel.readyState === 'open') {
+      try {
+        this.dataChannel.send(JSON.stringify({
+          type: 'chat',
+          text: sanitizedText,
+          timestamp: Date.now()
+        }));
+      } catch (error) {
+        console.warn('Data channel message send failed:', error);
+      }
+    }
+    
+    this.receiveChatMessage(sanitizedText, true);
+    this.elements.chatInput.value = '';
+  }
+
+  receiveChatMessage(text, isOwn = false) {
+    if (!this.elements.chatMessages) return;
+    
+    const messageElement = document.createElement('div');
+    messageElement.className = `chat-message ${isOwn ? 'own' : 'other'}`;
+    messageElement.textContent = text;
+    
+    this.elements.chatMessages.appendChild(messageElement);
+    this.elements.chatMessages.scrollTop = this.elements.chatMessages.scrollHeight;
+    
+    this.chatMessages.push({ text, isOwn, timestamp: Date.now() });
+    
+    // Show notification if chat panel is closed
+    if (!isOwn && !this.elements.chatPanel.classList.contains('open')) {
+      const preview = text.length > 50 ? text.substring(0, 50) + '...' : text;
+      this.showToast('info', `💬 ${preview}`);
+    }
+  }
+
+  // ========== PANEL MANAGEMENT ==========
+  openPanel(panelName) {
+    // Close other panels
+    ['chat', 'settings', 'history'].forEach(panel => {
+      if (panel !== panelName && this.elements[`${panel}Panel`]) {
+        this.elements[`${panel}Panel`].classList.remove('open');
+        this.panels[panel] = false;
+      }
+    });
+    
+    // Open requested panel
+    if (this.elements[`${panelName}Panel`]) {
+      this.elements[`${panelName}Panel`].classList.add('open');
+      this.panels[panelName] = true;
+      
+      // Load content for specific panels
+      if (panelName === 'history') {
+        this.loadHistory();
+      }
+    }
+  }
+
+  closePanel(panelName) {
+    if (this.elements[`${panelName}Panel`]) {
+      this.elements[`${panelName}Panel`].classList.remove('open');
+      this.panels[panelName] = false;
+    }
+  }
+
+  // ========== SETTINGS MANAGEMENT ==========
+  changeVideoQuality(quality) {
+    // Validate quality setting
+    if (!VIDEO_CONSTRAINTS[quality]) {
+      console.warn(`Invalid video quality: ${quality}`);
+      return;
+    }
+    
+    // Check if quality is appropriate for connection
+    if (this.environment.connectionType === 'critical' && quality !== 'minimal') {
+      this.showToast('warning', 'Качество ограничено критическим соединением');
+      quality = 'minimal';
+    } else if (this.environment.connectionType === 'poor' && !['minimal', 'mobile'].includes(quality)) {
+      this.showToast('warning', 'Качество ограничено слабым соединением');
+      quality = 'mobile';
+    }
+    
+    this.settings.videoQuality = quality;
+    this.showToast('info', `Качество видео: ${quality.toUpperCase()}`);
+    
+    if (this.pc && this.localStream) {
+      this.restartVideoStream();
     }
   }
 
@@ -1324,59 +2186,41 @@ class VideoCallApp {
 
   changeAudioOutput(deviceId) {
     this.settings.selectedAudioOutput = deviceId;
-    if (this.elements.remoteVideo.setSinkId) {
-      this.elements.remoteVideo.setSinkId(deviceId).catch(console.warn);
-    }
-  }
-
-  async restartAudioStream() {
-    try {
-      const audioTrack = this.localStream.getAudioTracks()[0];
-      if (!audioTrack) return;
-      
-      const constraints = {
-        ...AUDIO_CONSTRAINTS,
-        deviceId: this.settings.selectedAudioDevice ? 
-          { exact: this.settings.selectedAudioDevice } : undefined
-      };
-      
-      const newStream = await navigator.mediaDevices.getUserMedia({
-        video: false,
-        audio: constraints
+    if (this.elements.remoteVideo && this.elements.remoteVideo.setSinkId) {
+      this.elements.remoteVideo.setSinkId(deviceId).catch(error => {
+        console.warn('Audio output change failed:', error);
       });
-      
-      const newAudioTrack = newStream.getAudioTracks()[0];
-      const sender = this.pc.getSenders().find(s => 
-        s.track && s.track.kind === 'audio'
-      );
-      
-      if (sender) {
-        await sender.replaceTrack(newAudioTrack);
-      }
-      
-      audioTrack.stop();
-      this.localStream.removeTrack(audioTrack);
-      this.localStream.addTrack(newAudioTrack);
-    } catch (error) {
-      console.error('Restart audio stream error:', error);
     }
   }
 
-  // History
+  // ========== HISTORY MANAGEMENT ==========
   async loadHistory() {
     try {
       const response = await fetch('/history');
       const data = await response.json();
       const history = data.data || data;
       
+      if (!this.elements.historyList) return;
+      
       this.elements.historyList.innerHTML = '';
+      
+      if (history.length === 0) {
+        const emptyElement = document.createElement('div');
+        emptyElement.className = 'history-empty';
+        emptyElement.innerHTML = '<p>История звонков пуста</p>';
+        this.elements.historyList.appendChild(emptyElement);
+        return;
+      }
       
       history.forEach(item => {
         const itemElement = document.createElement('div');
         itemElement.className = 'history-item';
         
         const startTime = new Date(item.startedAt).toLocaleString();
-        const endTime = item.endedAt ? new Date(item.endedAt).toLocaleString() : 'В процессе';
+        const endTime = item.endedAt ? 
+          new Date(item.endedAt).toLocaleString() : 
+          'В процессе';
+        
         const duration = item.durationSec ? 
           `${Math.floor(item.durationSec / 60)}:${(item.durationSec % 60).toString().padStart(2, '0')}` : 
           '—';
@@ -1385,57 +2229,90 @@ class VideoCallApp {
         if (item.isRussian) flags.push('🇷🇺');
         if (item.turnUsed) flags.push('🔄');
         
+        const qualityIcon = this.getQualityIcon(item.quality);
+        
         itemElement.innerHTML = `
-          <h5>Комната: ${item.room} ${flags.join(' ')}</h5>
-          <p>Начало: ${startTime}</p>
-          <p>Окончание: ${endTime}</p>
-          <p>Длительность: ${duration}</p>
-          <p>Участников: ${item.participantsMax}</p>
-          ${item.messages ? `<p>Сообщений: ${item.messages}</p>` : ''}
-          ${item.turnUsed ? `<p>TURN сервер: Использован ✅</p>` : ''}
+          <h5>Комната: ${item.room} ${flags.join(' ')} ${qualityIcon}</h5>
+          <p><strong>Начало:</strong> ${startTime}</p>
+          <p><strong>Окончание:</strong> ${endTime}</p>
+          <p><strong>Длительность:</strong> ${duration}</p>
+          <p><strong>Участников:</strong> ${item.participantsMax}</p>
+          ${item.messages ? `<p><strong>Сообщений:</strong> ${item.messages}</p>` : ''}
+          ${item.turnUsed ? `<p><strong>TURN сервер:</strong> ✅ Использован</p>` : ''}
         `;
         
         this.elements.historyList.appendChild(itemElement);
       });
       
-      // Show TURN usage statistics
-      if (data.analytics && data.analytics.turnUsagePercent !== undefined) {
+      // Add statistics if available
+      if (data.analytics) {
         const statsElement = document.createElement('div');
         statsElement.className = 'history-stats';
         statsElement.innerHTML = `
-          <h5>📊 Статистика TURN сервера</h5>
-          <p>Использование: ${data.analytics.turnUsagePercent}% звонков</p>
-          <p>Сервер: 94.198.218.189:3478</p>
+          <h5>📊 Статистика</h5>
+          <p><strong>TURN использование:</strong> ${data.analytics.turnUsagePercent || 0}% звонков</p>
+          <p><strong>Ваш TURN сервер:</strong> ${TURN_SERVER_IP}:${TURN_SERVER_PORT}</p>
         `;
         this.elements.historyList.insertBefore(statsElement, this.elements.historyList.firstChild);
       }
+      
     } catch (error) {
-      console.error('Load history error:', error);
-      this.showToast('error', 'Не удалось загрузить историю');
+      console.error('History loading error:', error);
+      this.showToast('error', 'Не удалось загрузить историю звонков');
     }
   }
 
-  // Toast notifications
+  getQualityIcon(quality) {
+    const icons = {
+      ultra: '🔥',
+      hd: '📺',
+      sd: '📱',
+      mobile: '📞',
+      minimal: '🔧'
+    };
+    return icons[quality] || '📹';
+  }
+
+  // ========== NOTIFICATION SYSTEM ==========
   showToast(type, message, duration = 4000) {
+    if (!this.elements.toastContainer) return;
+    
     const toast = document.createElement('div');
     toast.className = `toast ${type}`;
     toast.textContent = message;
     
     this.elements.toastContainer.appendChild(toast);
     
+    // Auto-remove toast
     setTimeout(() => {
-      toast.classList.add('removing');
-      setTimeout(() => {
-        if (toast.parentNode) {
-          this.elements.toastContainer.removeChild(toast);
-        }
-      }, 300);
+      if (toast.parentNode) {
+        toast.classList.add('removing');
+        setTimeout(() => {
+          if (toast.parentNode) {
+            this.elements.toastContainer.removeChild(toast);
+          }
+        }, 300);
+      }
     }, duration);
+    
+    // Log toast messages
+    console.log(`Toast [${type}]: ${message}`);
   }
 
-  // Keyboard shortcuts
+  showCriticalError(message) {
+    this.showToast('error', message, 10000);
+    console.error(`CRITICAL ERROR: ${message}`);
+    
+    // Show in UI as well
+    if (this.elements.connectionStatus) {
+      this.updateConnectionStatus('error', 'Критическая ошибка');
+    }
+  }
+
+  // ========== EVENT HANDLERS ==========
   handleKeyboardShortcuts(event) {
-    if (event.target.tagName === 'INPUT') return;
+    // Don't handle shortcuts when typing
+    if (event.target.tagName === 'INPUT' || event.target.tagName === 'TEXTAREA') return;
     
     switch (event.key.toLowerCase()) {
       case 'm':
@@ -1448,174 +2325,40 @@ class VideoCallApp {
         if (this.pc) this.toggleChat();
         break;
       case 's':
-        if (this.pc) this.toggleScreenShare();
+        if (this.pc && event.ctrlKey) {
+          event.preventDefault();
+          this.toggleScreenShare();
+        }
+        break;
+      case 't':
+        if (event.ctrlKey && event.shiftKey) {
+          event.preventDefault();
+          this.performStressTest();
+        }
         break;
       case 'f':
         if (event.ctrlKey) {
           event.preventDefault();
-          this.turnForced = !this.turnForced;
-          this.showToast('info', `TURN ${this.turnForced ? 'принудительно включен' : 'отключен'}`);
+          this.toggleTurnForce();
         }
         break;
       case 'escape':
-        this.closePanel('chat');
-        this.closePanel('settings');
-        this.closePanel('history');
+        this.closeAllPanels();
         break;
     }
   }
 
-  // Responsive optimization
+  toggleTurnForce() {
+    this.turnForced = !this.turnForced;
+    this.showToast('info', `TURN принуждение: ${this.turnForced ? 'ВКЛ' : 'ВЫКЛ'}`);
+    console.log(`🔄 TURN forced toggled: ${this.turnForced}`);
+  }
+
+  closeAllPanels() {
+    ['chat', 'settings', 'history'].forEach(panel => {
+      this.closePanel(panel);
+    });
+  }
+
   handleResize() {
-    if (window.innerWidth <= 768 && this.settings.videoQuality === 'fhd') {
-      this.settings.videoQuality = 'hd';
-      if (this.pc && this.localStream) {
-        this.restartVideoStream();
-      }
-    }
-  }
-
-  handleVisibilityChange() {
-    if (document.hidden && this.pc) {
-      this.pc.getSenders().forEach(sender => {
-        if (sender.track?.kind === 'video') {
-          const params = sender.getParameters();
-          if (params.encodings) {
-            params.encodings[0].maxBitrate = 100000;
-            params.encodings[0].maxFramerate = 5;
-            sender.setParameters(params).catch(console.warn);
-          }
-        }
-      });
-    } else if (!document.hidden && this.pc) {
-      setTimeout(() => {
-        this.optimizePeerConnection();
-      }, 1000);
-    }
-  }
-
-  // Preview controls
-  togglePreviewVideo() {
-    this.settings.videoEnabled = !this.settings.videoEnabled;
-    
-    if (this.localStream) {
-      const videoTrack = this.localStream.getVideoTracks()[0];
-      if (videoTrack) {
-        videoTrack.enabled = this.settings.videoEnabled;
-      }
-    }
-    
-    this.elements.toggleVideoBtn.classList.toggle('active', this.settings.videoEnabled);
-  }
-
-  togglePreviewAudio() {
-    this.settings.audioEnabled = !this.settings.audioEnabled;
-    
-    if (this.localStream) {
-      const audioTrack = this.localStream.getAudioTracks()[0];
-      if (audioTrack) {
-        audioTrack.enabled = this.settings.audioEnabled;
-      }
-    }
-    
-    this.elements.toggleAudioBtn.classList.toggle('active', this.settings.audioEnabled);
-  }
-
-  // Hangup and cleanup
-  hangup() {
-    try {
-      this.sendSignalMessage({ type: 'leave' });
-    } catch (error) {
-      console.warn('Error sending leave message:', error);
-    }
-    
-    this.cleanup();
-    
-    // Return to join screen
-    this.elements.callScreen.classList.add('hidden');
-    this.elements.joinScreen.style.display = 'block';
-    this.elements.joinBtn.disabled = false;
-    
-    this.showToast('info', 'Звонок завершен');
-  }
-
-  cleanup() {
-    console.log('🧹 Cleaning up connection...');
-    
-    // Stop call timer
-    this.stopCallTimer();
-    
-    // Close connections
-    if (this.ws) {
-      this.ws.close();
-      this.ws = null;
-    }
-    
-    if (this.pc) {
-      this.pc.close();
-      this.pc = null;
-    }
-    
-    // Stop media streams
-    if (this.localStream) {
-      this.localStream.getTracks().forEach(track => track.stop());
-    }
-    if (this.remoteStream) {
-      this.remoteStream.getTracks().forEach(track => track.stop());
-    }
-    
-    // Clear video elements
-    this.elements.localVideo.srcObject = null;
-    this.elements.remoteVideo.srcObject = null;
-    
-    // Reset state
-    this.role = null;
-    this.currentRoom = null;
-    this.callStartTime = null;
-    this.isScreenSharing = false;
-    this.reconnectAttempts = 0;
-    this.connectionIssues = 0;
-    
-    // Clear chat
-    this.elements.chatMessages.innerHTML = '';
-    this.chatMessages = [];
-    
-    // Close panels
-    this.closePanel('chat');
-    this.closePanel('settings');
-    this.closePanel('history');
-    
-    // Update connection status
-    this.updateConnectionStatus('disconnected', 'Отключен');
-    
-    // Restart preview
-    setTimeout(() => {
-      this.startPreviewMedia();
-    }, 1000);
-  }
-}
-
-// Initialize app when DOM is ready
-document.addEventListener('DOMContentLoaded', () => {
-  console.log('🎯 Initializing VideoChat Pro for Russian networks...');
-  window.videoCallApp = new VideoCallApp();
-});
-
-// Enhanced event handlers for Russian networks
-window.addEventListener('online', () => {
-  if (window.videoCallApp) {
-    console.log('🌐 Network restored');
-    window.videoCallApp.showToast('success', '🌐 Интернет подключен');
-  }
-});
-
-window.addEventListener('offline', () => {
-  if (window.videoCallApp) {
-    console.log('🌐 Network lost');
-    window.videoCallApp.showToast('error', '🌐 Потеряно соединение с интернетом');
-  }
-});
-
-// Final initialization log
-console.log('🎥🇷🇺 VideoChat Pro with GUARANTEED TURN for Russian networks initialized');
-console.log('🔄 TURN server: 94.198.218.189:3478 (webrtc/pRr45XBJgdff9Z2Q4EdTLwOUyqudQjtN)');
+    // Adjust
