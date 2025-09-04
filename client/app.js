@@ -367,7 +367,8 @@ class CosmosApp {
                 '⌨️ Горячие клавиши:\n' + shortcuts.join('\n'), 
                 'info', 
                 8000
-        );
+            );
+        }
     }
 
     closeModals() {
@@ -391,7 +392,8 @@ class CosmosApp {
             window.NotificationSystem.show(
                 '⚠️ Произошла неожиданная ошибка. Приложение продолжает работать.',
                 'warning'
-        );
+            );
+        }
         
         // В продакшене здесь бы отправлялся отчет об ошибке
         this.reportError(error);
