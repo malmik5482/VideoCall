@@ -7,29 +7,29 @@
 }
 
 :root {
-    /* Космическая палитра */
-    --cosmic-purple: #6366f1;
-    --cosmic-purple-dark: #4338ca;
-    --cosmic-blue: #3b82f6;
-    --cosmic-cyan: #06b6d4;
-    --cosmic-pink: #ec4899;
-    --cosmic-gold: #f59e0b;
+    /* Космическая палитра - ЯРЧЕ */
+    --cosmic-purple: #818cf8;
+    --cosmic-purple-dark: #6366f1;
+    --cosmic-blue: #60a5fa;
+    --cosmic-cyan: #22d3ee;
+    --cosmic-pink: #f472b6;
+    --cosmic-gold: #fbbf24;
     
-    /* Темная тема */
-    --bg-primary: #0f0f23;
-    --bg-secondary: #1a1a2e;
-    --bg-tertiary: #16213e;
-    --bg-chat: #0e1421;
+    /* Темная тема - СВЕТЛЕЕ */
+    --bg-primary: #1e1e2e;
+    --bg-secondary: #2a2a3e;
+    --bg-tertiary: #35355a;
+    --bg-chat: #252538;
     
-    /* Светлые акценты */
+    /* Светлые акценты - ЯРЧЕ */
     --text-primary: #ffffff;
-    --text-secondary: #a1a1aa;
-    --text-muted: #71717a;
+    --text-secondary: #e5e5e7;
+    --text-muted: #a1a1aa;
     
-    /* Глоу эффекты */
-    --glow-purple: 0 0 20px rgba(99, 102, 241, 0.5);
-    --glow-blue: 0 0 20px rgba(59, 130, 246, 0.5);
-    --glow-cyan: 0 0 20px rgba(6, 182, 212, 0.5);
+    /* Глоу эффекты - ЯРЧЕ */
+    --glow-purple: 0 0 40px rgba(129, 140, 248, 0.8);
+    --glow-blue: 0 0 40px rgba(96, 165, 250, 0.8);
+    --glow-cyan: 0 0 40px rgba(34, 211, 238, 0.8);
     
     /* Шрифты */
     --font-primary: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
@@ -67,11 +67,11 @@ body {
     z-index: -1;
     background: linear-gradient(
         135deg,
-        #0f0f23 0%,
-        #1a1a2e 25%,
-        #16213e 50%,
-        #0e1421 75%,
-        #0f0f23 100%
+        #1e1e2e 0%,
+        #2a2a3e 25%,
+        #35355a 50%,
+        #252538 75%,
+        #1e1e2e 100%
     );
     overflow: hidden;
 }
@@ -89,11 +89,12 @@ body {
     width: 100%;
     height: 100%;
     background-image: 
-        radial-gradient(2px 2px at 20px 30px, rgba(255, 255, 255, 0.3), transparent),
-        radial-gradient(2px 2px at 40px 70px, rgba(59, 130, 246, 0.4), transparent),
-        radial-gradient(1px 1px at 90px 40px, rgba(99, 102, 241, 0.5), transparent),
-        radial-gradient(1px 1px at 130px 80px, rgba(236, 72, 153, 0.3), transparent),
-        radial-gradient(2px 2px at 160px 30px, rgba(6, 182, 212, 0.4), transparent);
+        radial-gradient(3px 3px at 20px 30px, rgba(255, 255, 255, 0.7), transparent),
+        radial-gradient(3px 3px at 40px 70px, rgba(96, 165, 250, 0.8), transparent),
+        radial-gradient(2px 2px at 90px 40px, rgba(129, 140, 248, 0.9), transparent),
+        radial-gradient(2px 2px at 130px 80px, rgba(244, 114, 182, 0.7), transparent),
+        radial-gradient(3px 3px at 160px 30px, rgba(34, 211, 238, 0.8), transparent);
+    filter: brightness(1.5);
     background-repeat: repeat;
     background-size: 200px 100px;
     animation: particles-float 20s linear infinite;
@@ -116,7 +117,7 @@ body {
     align-items: center;
     justify-content: center;
     z-index: 1000;
-    background: var(--bg-primary);
+    background: linear-gradient(135deg, #1e1e2e, #2a2a3e);
 }
 
 .logo-container {
@@ -282,7 +283,8 @@ body {
 }
 
 .auth-container {
-    background: rgba(26, 26, 46, 0.98);
+    background: linear-gradient(135deg, rgba(42, 42, 62, 0.98), rgba(53, 53, 90, 0.98));
+    border: 2px solid rgba(129, 140, 248, 0.3);
     backdrop-filter: none;
     border: 1px solid rgba(99, 102, 241, 0.2);
     border-radius: var(--radius-xl);
@@ -407,7 +409,7 @@ body {
     position: relative;
     padding: 16px 32px;
     background: transparent;
-    border: 2px solid var(--cosmic-purple);
+    border: 2px solid #818cf8;
     border-radius: var(--radius-lg);
     color: var(--text-primary);
     font-size: 16px;
@@ -424,13 +426,16 @@ body {
 }
 
 .cosmic-button.primary {
-    background: linear-gradient(135deg, var(--cosmic-purple), var(--cosmic-blue));
+    background: linear-gradient(135deg, #818cf8, #60a5fa);
     border: none;
+    box-shadow: 0 4px 20px rgba(129, 140, 248, 0.5);
+    filter: brightness(1.1);
 }
 
 .cosmic-button:hover {
     transform: translateY(-3px);
-    box-shadow: var(--glow-purple);
+    box-shadow: 0 8px 30px rgba(129, 140, 248, 0.6);
+    filter: brightness(1.2);
 }
 
 .cosmic-button.pulse {

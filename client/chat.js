@@ -668,12 +668,16 @@ class ChatSystem {
     }
 
     updateUserPresence() {
-        if (this.isConnected && this.user) {
-            this.ws.send(JSON.stringify({
-                type: 'user-presence',
-                userId: this.user.id,
-                status: 'online'
-            }));
+        if (this.isConnected && this.user && this.ws && this.ws.readyState === WebSocket.OPEN) {
+            try {
+                this.ws.send(JSON.stringify({
+                    type: 'user-presence',
+                    userId: this.user.id,
+                    status: 'online'
+                }));
+            } catch (error) {
+                console.log('⚠️ Не удалось обновить статус присутствия:', error);
+            }
         }
     }
 }
