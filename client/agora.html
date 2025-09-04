@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VideoChat Pro - Agora Edition 🚀</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        /* Специальные стили для Agora версии */
+        .agora-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 1rem;
+            border-radius: 12px;
+            margin-bottom: 1rem;
+            text-align: center;
+        }
+        
+        .agora-config {
+            background: #f8f9fa;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            padding: 1rem;
+            margin: 1rem 0;
+        }
+        
+        .agora-config h3 {
+            margin-top: 0;
+            color: #495057;
+        }
+        
+        .config-input {
+            width: 100%;
+            padding: 0.5rem;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+        }
+        
+        .channel-info {
+            background: #d1ecf1;
+            border: 1px solid #bee5eb;
+            border-radius: 6px;
+            padding: 0.75rem;
+            margin: 0.5rem 0;
+            font-weight: 500;
+            color: #0c5460;
+        }
+        
+        .diagnostic-agora {
+            background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);
+            border: none;
+            color: #2c3e50;
+            font-weight: 600;
+        }
+        
+        .agora-advantages {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            border-radius: 8px;
+            padding: 1rem;
+            margin: 1rem 0;
+        }
+        
+        .status-success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .status-error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .status-info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Заголовок Agora Edition -->
+        <div class="agora-header">
+            <h1>🚀 VideoChat Pro - Agora Edition</h1>
+            <p><strong>Специально оптимизировано для мобильных сетей России</strong></p>
+            <div style="font-size: 0.9rem; opacity: 0.9;">
+                ✅ МТС • ✅ Билайн • ✅ МегаФон • ✅ Теле2
+            </div>
+        </div>
+
+        <!-- Конфигурация Agora -->
+        <div class="agora-config">
+            <h3>🔑 Настройка Agora</h3>
+            <div style="margin-bottom: 1rem;">
+                <label for="appIdInput"><strong>App ID:</strong></label>
+                <input 
+                    type="text" 
+                    id="appIdInput" 
+                    class="config-input"
+                    placeholder="Ваш App ID уже настроен!"
+                    value="86d591368acb4da89f891b8db54c842a"
+                >
+                <button onclick="updateAgoraConfig()" style="margin-top: 0.5rem; width: 100%;" class="button">
+                    💾 Сохранить настройки
+                </button>
+            </div>
+            <div class="channel-info" id="channelInfo">
+                Не подключен
+            </div>
+        </div>
+
+        <!-- Преимущества Agora -->
+        <div class="agora-advantages">
+            <h4>🎯 Почему Agora лучше для российских сетей:</h4>
+            <ul>
+                <li><strong>🚀 Серверы в Москве</strong> - низкая задержка</li>
+                <li><strong>📱 Оптимизация мобильных</strong> - адаптивный битрейт</li>
+                <li><strong>🔗 Умная маршрутизация</strong> - обход блокировок провайдеров</li>
+                <li><strong>⚡ SFU архитектура</strong> - стабильнее P2P</li>
+                <li><strong>🛠 Автонастройка</strong> - под тип сети и оператора</li>
+            </ul>
+        </div>
+
+        <!-- Статус -->
+        <div id="status" class="status"></div>
+
+        <!-- Видео контейнеры -->
+        <div class="video-container">
+            <div class="video-wrapper">
+                <video id="localVideo" autoplay muted playsinline></video>
+                <div class="video-label">Вы</div>
+            </div>
+            
+            <div class="video-wrapper">
+                <video id="remoteVideo" autoplay playsinline></video>
+                <div class="video-label">Собеседник</div>
+            </div>
+        </div>
+
+        <!-- Кнопки управления -->
+        <div class="controls">
+            <button id="startButton" class="button start-button">
+                📞 Начать звонок
+            </button>
+            <button id="hangupButton" class="button hangup-button" disabled>
+                📞 Завершить звонок
+            </button>
+            <button id="diagnosticButton" class="button diagnostic-button diagnostic-agora">
+                🔍 Agora Диагностика
+            </button>
+        </div>
+
+        <!-- Дополнительные функции -->
+        <div class="additional-controls">
+            <button onclick="generateNewChannel()" class="button">
+                🔄 Новый канал
+            </button>
+            <button onclick="copyChannelToClipboard()" class="button">
+                📋 Скопировать канал
+            </button>
+        </div>
+
+        <!-- Информация о версии -->
+        <div class="version-info">
+            <div class="version-item">
+                <strong>Версия:</strong> 6.0.0-AGORA
+            </div>
+            <div class="version-item">
+                <strong>SDK:</strong> Agora RTC v4.20.0
+            </div>
+            <div class="version-item">
+                <strong>Оптимизировано для:</strong> Российские мобильные сети
+            </div>
+        </div>
+
+        <!-- Инструкции по настройке -->
+        <div class="setup-instructions" style="margin-top: 2rem; padding: 1rem; background: #fff3cd; border-radius: 8px; border: 1px solid #ffeaa7;">
+            <h4>📋 Инструкция по настройке:</h4>
+            <ol>
+                <li>Зайдите в <a href="https://console.agora.io" target="_blank"><strong>консоль Agora</strong></a></li>
+                <li>Создайте проект или выберите существующий</li>
+                <li>Скопируйте <strong>App ID</strong> из настроек проекта</li>
+                <li>Вставьте App ID в поле выше и нажмите "Сохранить"</li>
+                <li>Нажмите "Начать звонок" для тестирования</li>
+            </ol>
+            <p><strong>💡 Совет:</strong> Откройте эту страницу на двух устройствах с одинаковым каналом для видеозвонка!</p>
+        </div>
+    </div>
+
+    <!-- JavaScript -->
+    <script src="agora-app.js"></script>
+    <script>
+        // Дополнительные функции для UI
+        function updateAgoraConfig() {
+            const appId = document.getElementById('appIdInput').value.trim();
+            
+            if (!appId) {
+                alert('❌ Введите App ID!');
+                return;
+            }
+            
+            // Обновляем конфигурацию
+            AGORA_CONFIG.APP_ID = appId;
+            
+            // Генерируем новый канал
+            AGORA_CONFIG.CHANNEL = 'videochat-' + Math.random().toString(36).substr(2, 9);
+            
+            // Обновляем UI
+            document.getElementById('channelInfo').textContent = 'Канал: ' + AGORA_CONFIG.CHANNEL;
+            
+            showStatus('✅ Настройки Agora сохранены!', 'success');
+            
+            // Сохраняем в localStorage для следующих сессий
+            localStorage.setItem('agora_app_id', appId);
+            localStorage.setItem('agora_channel', AGORA_CONFIG.CHANNEL);
+        }
+        
+        function generateNewChannel() {
+            AGORA_CONFIG.CHANNEL = 'videochat-' + Math.random().toString(36).substr(2, 9);
+            document.getElementById('channelInfo').textContent = 'Канал: ' + AGORA_CONFIG.CHANNEL;
+            localStorage.setItem('agora_channel', AGORA_CONFIG.CHANNEL);
+            showStatus('🔄 Новый канал создан!', 'info');
+        }
+        
+        // Загружаем сохраненные настройки
+        document.addEventListener('DOMContentLoaded', () => {
+            // Автоматически устанавливаем предустановленный App ID
+            const presetAppId = '86d591368acb4da89f891b8db54c842a';
+            const savedChannel = localStorage.getItem('agora_channel') || AGORA_CONFIG.CHANNEL;
+            
+            // Устанавливаем App ID
+            document.getElementById('appIdInput').value = presetAppId;
+            AGORA_CONFIG.APP_ID = presetAppId;
+            localStorage.setItem('agora_app_id', presetAppId);
+            
+            // Устанавливаем канал
+            AGORA_CONFIG.CHANNEL = savedChannel;
+            document.getElementById('channelInfo').textContent = 'Канал: ' + savedChannel;
+            localStorage.setItem('agora_channel', savedChannel);
+            
+            // Показываем что настройки готовы
+            showStatus('✅ App ID настроен! Готов к звонкам!', 'success');
+        });
+    </script>
+</body>
+</html>

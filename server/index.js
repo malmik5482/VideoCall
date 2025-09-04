@@ -3,8 +3,20 @@ const express = require('express');
 const cors = require('cors');
 const { WebSocketServer } = require('ws');
 
+// Agora token generation
+let RtcTokenBuilder;
+let RtcRole;
+try {
+  const agoraToken = require('agora-token');
+  RtcTokenBuilder = agoraToken.RtcTokenBuilder;
+  RtcRole = agoraToken.RtcRole;
+  console.log('✅ Agora token builder loaded successfully');
+} catch (e) {
+  console.error('❌ Agora token builder error:', e.message);
+}
+
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3001;
 const NODE_ENV = process.env.NODE_ENV || 'development';
 
 // Basic security
@@ -15,6 +27,11 @@ app.use(express.json({ limit: '10mb' }));
 // Serve static files
 const clientDir = path.join(__dirname, '..', 'client');
 app.use(express.static(clientDir, { extensions: ['html'] }));
+
+// Agora version route
+app.get('/agora', (req, res) => {
+  res.sendFile(path.join(clientDir, 'agora.html'));
+});
 
 // ---- Enhanced ICE Configuration for Russia with aggressive optimization ----
 function getICEConfig() {
@@ -276,6 +293,94 @@ app.get('/history', (req, res) => {
         Math.round((analytics.turnServerUsage / analytics.totalCalls) * 100) : 0
     }
   });
+});
+
+// ---- AGORA TOKEN GENERATION ----
+app.post('/agora/token', (req, res) => {
+  try {
+    const { channelName, uid, role, expireTime } = req.body;
+    
+    if (!channelName) {
+      return res.status(400).json({ error: 'Channel name is required' });
+    }
+    
+    // Your specific Agora credentials
+    const appId = '86d591368acb4da89f891b8db54c842a';
+    const appCertificate = '22c6f01d5ba44f00a996fcbde42174a5';
+    
+    console.log('🔑 Using App Certificate for token generation');
+    
+    // Check if token builder is available
+    if (!RtcTokenBuilder) {
+      return res.status(500).json({ 
+        error: 'Token builder not available',
+        message: 'Install agora-token package',
+        token: null
+      });
+    }
+    
+    const currentTimestamp = Math.floor(Date.now() / 1000);
+    const privilegeExpiredTs = currentTimestamp + (expireTime || 3600); // 1 hour default
+    
+    // Generate token with proper role
+    const userRole = RtcRole.PUBLISHER; // Can publish audio/video
+    const token = RtcTokenBuilder.buildTokenWithUid(
+      appId, 
+      appCertificate, 
+      channelName, 
+      uid || 0, 
+      userRole, 
+      privilegeExpiredTs
+    );
+    
+    console.log('✅ Agora token generated for channel:', channelName);
+    
+    res.json({
+      token,
+      channelName,
+      uid: uid || 0,
+      expireTime: privilegeExpiredTs
+    });
+    
+  } catch (error) {
+    console.error('Agora token generation error:', error);
+    res.status(500).json({ 
+      error: 'Token generation failed',
+      message: error.message,
+      token: null
+    });
+  }
+});
+
+app.get('/agora/config', (req, res) => {
+  const userAgent = req.headers['user-agent'] || '';
+  const clientIP = req.ip || req.connection.remoteAddress || '';
+  const isRussian = detectRussianUser(clientIP, userAgent);
+  
+  // Agora configuration optimized for Russian networks
+  const config = {
+    mode: 'rtc',
+    codec: 'vp8', // Better for mobile devices
+    optimizations: {
+      russian: isRussian,
+      mobile: userAgent.includes('Mobile'),
+      network: 'adaptive'
+    },
+    videoProfile: isRussian ? {
+      width: 640,
+      height: 480,
+      frameRate: 15,
+      bitrate: 800 // Conservative for Russian networks
+    } : {
+      width: 1280,
+      height: 720,
+      frameRate: 30,
+      bitrate: 1500
+    }
+  };
+  
+  console.log(`🚀 Agora config requested from ${clientIP} (Russian: ${isRussian})`);
+  res.json(config);
 });
 
 app.get('/analytics', (req, res) => {

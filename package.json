@@ -9,6 +9,8 @@
     "test": "echo \"No tests specified\" && exit 0"
   },
   "dependencies": {
+    "agora-rtc-sdk-ng": "^4.20.0",
+    "agora-token": "^2.0.5",
     "cors": "^2.8.5",
     "express": "^4.19.2",
     "ws": "^8.17.1"
@@ -17,6 +19,14 @@
     "node": ">=18"
   },
   "description": "WebRTC video calling app optimized for Russian networks with advanced TURN/STUN configuration",
-  "keywords": ["webrtc", "video", "calling", "russia", "turn", "stun", "p2p"],
+  "keywords": [
+    "webrtc",
+    "video",
+    "calling",
+    "russia",
+    "turn",
+    "stun",
+    "p2p"
+  ],
   "author": "Russian WebRTC Team"
 }
