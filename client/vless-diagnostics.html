@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VLESS Diagnostics</title>
+    <style>
+        body { font-family: Arial; padding: 20px; background: #f5f5f5; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        h1 { color: #333; text-align: center; }
+        .status { padding: 15px; margin: 10px 0; border-radius: 8px; font-weight: bold; }
+        .success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .info { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        .warning { background: #fff3cd; color: #856404; border: 1px solid #ffeaa7; }
+        button { background: #007bff; color: white; border: none; padding: 12px 24px; border-radius: 5px; cursor: pointer; margin: 5px; font-size: 16px; }
+        button:hover { background: #0056b3; }
+        button:disabled { background: #6c757d; cursor: not-allowed; }
+        .log { background: #f8f9fa; padding: 10px; margin: 5px 0; border-radius: 5px; font-family: monospace; font-size: 14px; }
+        .step { margin: 15px 0; padding: 15px; border: 1px solid #dee2e6; border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🛡️ VLESS Connection Diagnostics</h1>
+        
+        <div class="step">
+            <h3>Шаг 1: Тест WebSocket подключения</h3>
+            <button onclick="testWebSocket()">🔗 Тест WebSocket</button>
+            <div id="wsStatus" class="status info">Ожидание теста...</div>
+        </div>
+
+        <div class="step">
+            <h3>Шаг 2: Тест VLESS Protocol</h3>
+            <button onclick="testVLESS()">🛡️ Тест VLESS</button>
+            <div id="vlessStatus" class="status info">Ожидание теста...</div>
+        </div>
+
+        <div class="step">
+            <h3>Шаг 3: Тест с WebRTC over VLESS</h3>
+            <button onclick="testWebRTCVLESS()">📞 Тест WebRTC + VLESS</button>
+            <div id="webrtcStatus" class="status info">Ожидание теста...</div>
+        </div>
+
+        <div class="step">
+            <h3>Шаг 4: Полная симуляция приложения</h3>
+            <button onclick="testFullApp()">🎥 Симуляция приложения</button>
+            <div id="appStatus" class="status info">Ожидание теста...</div>
+        </div>
+
+        <div class="step">
+            <h3>📋 Логи диагностики</h3>
+            <div id="logs"></div>
+            <button onclick="clearLogs()">🗑️ Очистить логи</button>
+        </div>
+    </div>
+
+    <script src="vless-protocol.js"></script>
+    <script>
+        let currentWs = null;
+        let currentVless = null;
+
+        function addLog(message, type = 'info') {
+            const logs = document.getElementById('logs');
+            const log = document.createElement('div');
+            log.className = 'log';
+            log.innerHTML = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logs.appendChild(log);
+            logs.scrollTop = logs.scrollHeight;
+            console.log(message);
+        }
+
+        function clearLogs() {
+            document.getElementById('logs').innerHTML = '';
+        }
+
+        function setStatus(id, message, type = 'info') {
+            const element = document.getElementById(id);
+            element.textContent = message;
+            element.className = `status ${type}`;
+        }
+
+        // Тест 1: WebSocket подключение
+        async function testWebSocket() {
+            addLog('🔗 Начинаем тест WebSocket...');
+            setStatus('wsStatus', 'Подключение...', 'info');
+
+            try {
+                const wsUrl = 'wss://3002-ip468ihcy403p6enirr3p-6532622b.e2b.dev/ws?type=vless';
+                addLog(`Подключаемся к: ${wsUrl}`);
+                
+                currentWs = new WebSocket(wsUrl);
+
+                const result = await new Promise((resolve, reject) => {
+                    const timeout = setTimeout(() => {
+                        reject(new Error('WebSocket timeout'));
+                    }, 10000);
+
+                    currentWs.onopen = () => {
+                        clearTimeout(timeout);
+                        addLog('✅ WebSocket подключен успешно!');
+                        resolve('success');
+                    };
+
+                    currentWs.onerror = (error) => {
+                        clearTimeout(timeout);
+                        addLog('❌ WebSocket ошибка');
+                        reject(error);
+                    };
+
+                    currentWs.onclose = (event) => {
+                        addLog(`🔌 WebSocket закрыт: ${event.code} - ${event.reason}`);
+                    };
+
+                    currentWs.onmessage = (event) => {
+                        try {
+                            const message = JSON.parse(event.data);
+                            addLog(`📨 WebSocket сообщение: ${JSON.stringify(message)}`);
+                        } catch (e) {
+                            addLog(`📦 WebSocket binary: ${event.data.length} байт`);
+                        }
+                    };
+                });
+
+                setStatus('wsStatus', 'WebSocket работает!', 'success');
+                return result;
+
+            } catch (error) {
+                addLog(`❌ WebSocket ошибка: ${error.message}`);
+                setStatus('wsStatus', `Ошибка: ${error.message}`, 'error');
+                throw error;
+            }
+        }
+
+        // Тест 2: VLESS Protocol
+        async function testVLESS() {
+            addLog('🛡️ Начинаем тест VLESS Protocol...');
+            setStatus('vlessStatus', 'Инициализация...', 'info');
+
+            try {
+                const vlessClient = new VLESSClient({
+                    address: '95.181.173.120',
+                    port: 8443,
+                    uuid: '89462a65-fafa-4f9a-9efd-2be01a001778'
+                });
+
+                const connected = await vlessClient.connect();
+                
+                if (connected && vlessClient.isConnected()) {
+                    addLog('✅ VLESS Protocol работает!');
+                    setStatus('vlessStatus', 'VLESS туннель установлен!', 'success');
+                    
+                    // Закрываем соединение
+                    setTimeout(() => vlessClient.close(), 2000);
+                } else {
+                    throw new Error('VLESS не подключился');
+                }
+
+            } catch (error) {
+                addLog(`❌ VLESS ошибка: ${error.message}`);
+                setStatus('vlessStatus', `Ошибка: ${error.message}`, 'error');
+                throw error;
+            }
+        }
+
+        // Тест 3: WebRTC over VLESS
+        async function testWebRTCVLESS() {
+            addLog('📞 Начинаем тест WebRTC + VLESS...');
+            setStatus('webrtcStatus', 'Инициализация WebRTC...', 'info');
+
+            try {
+                currentVless = new WebRTCOverVLESS();
+                
+                currentVless.onConnectionChange = (state) => {
+                    addLog(`🔄 WebRTC состояние: ${state}`);
+                    
+                    if (state === 'connected') {
+                        setStatus('webrtcStatus', 'WebRTC + VLESS работает!', 'success');
+                    } else if (state === 'error') {
+                        setStatus('webrtcStatus', 'Ошибка WebRTC + VLESS', 'error');
+                    }
+                };
+
+                await currentVless.initVLESS();
+                
+                const status = currentVless.getStatus();
+                addLog(`📊 WebRTC статус: ${JSON.stringify(status)}`);
+
+                if (status.vlessConnected) {
+                    addLog('✅ WebRTC over VLESS работает!');
+                    setStatus('webrtcStatus', 'WebRTC + VLESS туннель готов!', 'success');
+                } else {
+                    throw new Error('WebRTC + VLESS не подключился');
+                }
+
+            } catch (error) {
+                addLog(`❌ WebRTC + VLESS ошибка: ${error.message}`);
+                setStatus('webrtcStatus', `Ошибка: ${error.message}`, 'error');
+                throw error;
+            }
+        }
+
+        // Тест 4: Полная симуляция приложения
+        async function testFullApp() {
+            addLog('🎥 Начинаем полную симуляцию приложения...');
+            setStatus('appStatus', 'Симуляция пользователя...', 'info');
+
+            try {
+                // Симулируем клики пользователя
+                addLog('👆 Симуляция: пользователь нажал "Активировать VLESS"');
+                
+                const webrtcVless = new WebRTCOverVLESS();
+                
+                webrtcVless.onConnectionChange = (state) => {
+                    addLog(`🎭 Симуляция: состояние изменилось на ${state}`);
+                };
+
+                await webrtcVless.initVLESS();
+                
+                if (webrtcVless.getStatus().vlessConnected) {
+                    addLog('✅ Симуляция: VLESS активирована успешно!');
+                    addLog('👆 Симуляция: пользователь готов к звонку');
+                    setStatus('appStatus', 'Приложение работает идеально!', 'success');
+                } else {
+                    throw new Error('Симуляция: VLESS не активировался');
+                }
+
+            } catch (error) {
+                addLog(`❌ Симуляция ошибка: ${error.message}`);
+                setStatus('appStatus', `Ошибка в приложении: ${error.message}`, 'error');
+                throw error;
+            }
+        }
+
+        // Автозапуск при загрузке
+        window.addEventListener('load', () => {
+            addLog('🚀 Диагностика VLESS загружена');
+            addLog('💡 Нажимайте кнопки для тестирования каждого этапа');
+        });
+    </script>
+</body>
+</html>

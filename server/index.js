@@ -759,15 +759,20 @@ const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`🛡️ WebSocket: /ws (supports VLESS with ?type=vless)`);
   console.log(`🌐 Public URL: https://malmik5482-videocall-fc69.twc1.net`);
   
-  // Initialize VLESS proxy (without starting separate server)
+  // Initialize VLESS proxy with correct Reality configuration
   try {
     vlessProxy = new VLESSProxy({
       vlessHost: '95.181.173.120',
       vlessPort: 8443,
-      uuid: '89462a65-fafa-4f9a-9efd-2be01a001778'
+      uuid: '89462a65-fafa-4f9a-9efd-2be01a001778',
+      pbk: 'sYRQrrHz53_pV3JTotREtRsdsc71UmUQfIWPbe3M3CE',
+      sni: 'google.com',
+      sid: 'fd9f991d'
     });
     
-    console.log(`🛡️ VLESS proxy initialized and integrated with main server`);
+    console.log(`🛡️ VLESS proxy initialized with Reality configuration`);
+    console.log(`🎯 Target: 95.181.173.120:8443 (TCP RAW + Reality)`);
+    console.log(`🔑 SNI: google.com, Dest: google.com:443`);
     
   } catch (error) {
     console.error('❌ Failed to initialize VLESS proxy:', error.message);

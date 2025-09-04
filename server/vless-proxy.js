@@ -11,8 +11,13 @@ class VLESSProxy {
       host: options.vlessHost || '95.181.173.120',
       port: options.vlessPort || 8443,
       uuid: options.uuid || '89462a65-fafa-4f9a-9efd-2be01a001778',
-      security: options.security || 'reality',
-      sni: options.sni || 'google.com'
+      security: 'reality', // Из конфигурации панели
+      sni: 'google.com', // Основной SNI из панели  
+      dest: 'google.com:443', // Destination из панели
+      pbk: 'sYRQrrHz53_pV3JTotREtRsdsc71UmUQfIWPbe3M3CE', // Public key из панели
+      utls: 'chrome', // uTLS fingerprint из панели
+      flow: '', // Для Reality обычно пусто
+      sid: options.sid || 'fd9f991d' // Short ID (можем использовать из URL)
     };
     
     this.wsServer = null;
@@ -33,7 +38,13 @@ class VLESSProxy {
   createVLESSHeader(targetHost = 'google.com', targetPort = 443) {
     const uuid = this.parseUUID(this.vlessConfig.uuid);
     
-    // Правильная структура VLESS заголовка:
+    // ВАЖНО: Для Reality протокола используем destination из конфигурации сервера!
+    const realTargetHost = this.vlessConfig.dest.split(':')[0]; // google.com из google.com:443
+    const realTargetPort = parseInt(this.vlessConfig.dest.split(':')[1]) || 443;
+    
+    console.log(`🎯 Using Reality destination: ${realTargetHost}:${realTargetPort} (from server config)`);
+    
+    // Правильная структура VLESS заголовка для Reality:
     // [version] [uuid] [additional info length] [command] [port] [address type] [address length] [address]
     
     const buffers = [];
@@ -44,28 +55,29 @@ class VLESSProxy {
     // 2. UUID (16 bytes)
     buffers.push(uuid);
     
-    // 3. Additional info length (1 byte) - для Reality должно быть 0
+    // 3. Additional info length (1 byte) - для Reality 0 (без дополнительной инфо)
     buffers.push(Buffer.from([0x00]));
     
     // 4. Command (1 byte) - 1 для TCP
     buffers.push(Buffer.from([0x01]));
     
-    // 5. Port (2 bytes) - big endian
+    // 5. Port (2 bytes) - big endian - используем реальный destination port
     const portBuffer = Buffer.alloc(2);
-    portBuffer.writeUInt16BE(targetPort, 0);
+    portBuffer.writeUInt16BE(realTargetPort, 0);
     buffers.push(portBuffer);
     
     // 6. Address Type (1 byte) - 2 для domain
     buffers.push(Buffer.from([0x02]));
     
-    // 7. Address Length (1 byte) + Address (variable length)
-    const hostBuffer = Buffer.from(targetHost, 'utf8');
+    // 7. Address Length (1 byte) + Address (variable length) - используем реальный destination host
+    const hostBuffer = Buffer.from(realTargetHost, 'utf8');
     buffers.push(Buffer.from([hostBuffer.length]));
     buffers.push(hostBuffer);
     
     const header = Buffer.concat(buffers);
-    console.log(`🔧 VLESS header created: ${header.length} bytes for ${targetHost}:${targetPort}`);
+    console.log(`🔧 VLESS Reality header: ${header.length} bytes for ${realTargetHost}:${realTargetPort}`);
     console.log(`🔧 Header hex: ${header.toString('hex')}`);
+    console.log(`🔧 UUID used: ${this.vlessConfig.uuid}`);
     
     return header;
   }
@@ -107,6 +119,9 @@ class VLESSProxy {
     // Create TCP connection to VLESS server with timeout
     const tcpSocket = new net.Socket();
     tcpSocket.setTimeout(15000); // 15 секунд таймаут
+    
+    console.log(`🎯 Connecting to VLESS Reality server: ${this.vlessConfig.host}:${this.vlessConfig.port}`);
+    console.log(`🔑 Using config: SNI=${this.vlessConfig.sni}, Dest=${this.vlessConfig.dest}, uTLS=${this.vlessConfig.utls}`);
     
     // Store connection mapping
     this.connections.set(clientId, {
