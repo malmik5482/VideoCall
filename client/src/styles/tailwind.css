@@ -1,0 +1,125 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Базовые настройки для современной адаптивной верстки */
+@layer base {
+  html {
+    @apply scroll-smooth;
+  }
+
+  body {
+    @apply font-sans text-gray-900 leading-relaxed;
+    @apply antialiased;
+  }
+
+  /* Адаптивная типографика */
+  h1 {
+    @apply text-2xl md:text-3xl lg:text-4xl font-bold;
+  }
+
+  h2 {
+    @apply text-xl md:text-2xl lg:text-3xl font-semibold;
+  }
+
+  h3 {
+    @apply text-lg md:text-xl lg:text-2xl font-medium;
+  }
+
+  /* Адаптивные контейнеры */
+  .container {
+    @apply mx-auto px-4 sm:px-6 lg:px-8;
+  }
+}
+
+@layer components {
+  /* Компоненты для кнопок */
+  .btn {
+    @apply inline-flex items-center justify-center;
+    @apply px-4 py-2 border border-transparent;
+    @apply text-sm font-medium rounded-md;
+    @apply focus:outline-none focus:ring-2 focus:ring-offset-2;
+    @apply transition-colors duration-200;
+  }
+
+  .btn-primary {
+    @apply bg-blue-600 text-white hover:bg-blue-700;
+    @apply focus:ring-blue-500;
+  }
+
+  .btn-secondary {
+    @apply bg-gray-200 text-gray-900 hover:bg-gray-300;
+    @apply focus:ring-gray-500;
+  }
+
+  /* Адаптивные карточки */
+  .card {
+    @apply bg-white rounded-lg shadow-md;
+    @apply border border-gray-200;
+    @apply overflow-hidden;
+  }
+
+  .card-header {
+    @apply px-4 py-3 sm:px-6;
+    @apply border-b border-gray-200;
+  }
+
+  .card-body {
+    @apply px-4 py-3 sm:px-6;
+  }
+
+  /* Адаптивная сетка */
+  .grid-responsive {
+    @apply grid gap-4;
+    @apply grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4;
+  }
+
+  /* Формы */
+  .form-input {
+    @apply block w-full px-3 py-2;
+    @apply border border-gray-300 rounded-md;
+    @apply placeholder-gray-400;
+    @apply focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500;
+    @apply transition-colors duration-200;
+  }
+
+  .form-label {
+    @apply block text-sm font-medium text-gray-700 mb-1;
+  }
+}
+
+@layer utilities {
+  /* Дополнительные утилиты для адаптивности */
+  .safe-area-top {
+    padding-top: env(safe-area-inset-top);
+  }
+
+  .safe-area-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  /* Скрытие скроллбара */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Градиенты */
+  .gradient-bg {
+    @apply bg-gradient-to-r from-blue-500 to-purple-600;
+  }
+
+  /* Анимации */
+  .animate-fade-in {
+    animation: fadeIn 0.5s ease-in-out;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+}
