@@ -1,38 +1,24 @@
 {
-  "name": "videocall-russian-optimized",
-  "version": "4.0.0",
-  "private": true,
-  "main": "server/server.js",
+  "name": "videocall-app",
+  "version": "2.0.0",
+  "description": "WebRTC видеозвонки с сигналингом через WebSocket",
+  "main": "index.js",
   "scripts": {
-    "start": "node server/server.js",
-    "dev": "node server/server.js",
-    "start:pm2": "pm2 start ecosystem.config.js --env production",
-    "stop:pm2": "pm2 stop cosmoschat",
-    "restart:pm2": "pm2 restart cosmoschat",
-    "logs:pm2": "pm2 logs cosmoschat --lines 100",
-    "test": "echo \"No tests specified\" && exit 0"
+    "start": "node index.js",
+    "dev": "node index.js"
   },
   "dependencies": {
-    "agora-rtc-sdk-ng": "^4.20.0",
-    "agora-token": "^2.0.5",
-    "axios": "^1.11.0",
+    "compression": "^1.7.4",
     "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
     "express": "^4.19.2",
-    "pm2": "^6.0.10",
-    "ws": "^8.17.1"
+    "helmet": "^7.1.0",
+    "ws": "^8.18.0"
   },
+  "keywords": ["webrtc", "videocall", "websocket", "turn", "stun"],
+  "author": "VideoCall App",
+  "license": "MIT",
   "engines": {
-    "node": ">=18"
-  },
-  "description": "WebRTC video calling app optimized for Russian networks with advanced TURN/STUN configuration",
-  "keywords": [
-    "webrtc",
-    "video",
-    "calling",
-    "russia",
-    "turn",
-    "stun",
-    "p2p"
-  ],
-  "author": "Russian WebRTC Team"
+    "node": ">=16.0.0"
+  }
 }
