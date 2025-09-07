@@ -1,33 +1,59 @@
 {
   "name": "videocall-client",
   "version": "1.0.0",
-  "description": "Клиентская часть приложения видеозвонков на WebRTC",
-  "main": "index.html",
+  "description": "Клиентская часть приложения видеозвонков на React с TypeScript",
+  "main": "src/index.tsx",
   "scripts": {
-    "start": "live-server --port=3000",
-    "build": "webpack --mode=production",
-    "dev": "webpack --mode=development --watch",
-    "lint": "eslint *.js",
-    "test": "jest"
+    "start": "react-scripts start",
+    "build": "react-scripts build",
+    "test": "react-scripts test",
+    "eject": "react-scripts eject",
+    "dev": "react-scripts start",
+    "lint": "eslint src/**/*.{js,jsx,ts,tsx}",
+    "lint:fix": "eslint src/**/*.{js,jsx,ts,tsx} --fix"
   },
   "keywords": [
+    "react",
+    "typescript",
+    "tailwindcss",
     "webrtc",
     "videocall",
-    "javascript",
-    "html5",
     "websocket"
   ],
   "author": "malmik5482",
   "license": "MIT",
   "dependencies": {
-    "socket.io-client": "^4.7.2"
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "socket.io-client": "^4.7.2",
+    "web-vitals": "^3.3.2"
   },
   "devDependencies": {
-    "live-server": "^1.2.2",
-    "webpack": "^5.88.0",
-    "webpack-cli": "^5.1.4",
+    "@types/node": "^20.4.1",
+    "@types/react": "^18.2.14",
+    "@types/react-dom": "^18.2.6",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "autoprefixer": "^10.4.14",
     "eslint": "^8.45.0",
-    "jest": "^29.6.2"
+    "eslint-plugin-react": "^7.32.2",
+    "eslint-plugin-react-hooks": "^4.6.0",
+    "postcss": "^8.4.26",
+    "react-scripts": "5.0.1",
+    "tailwindcss": "^3.3.3",
+    "typescript": "^5.1.6"
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
   },
   "repository": {
     "type": "git",
