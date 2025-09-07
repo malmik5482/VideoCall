@@ -88,7 +88,7 @@ main() {
     # Client dependencies and build
     log "🏗️ Building React frontend..."
     cd client
-    npm ci
+    npm ci --include=dev
     npm run build
     cd ..
     
