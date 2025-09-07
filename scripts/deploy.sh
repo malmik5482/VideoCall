@@ -45,8 +45,8 @@ main() {
     log "📅 Deployment ID: deploy_${ENVIRONMENT}_${TIMESTAMP}"
     
     # Validate environment
-    if [[ ! "$ENVIRONMENT" =~ ^(development|production|staging)$ ]]; then
-        error "Invalid environment: $ENVIRONMENT. Use: development, production, or staging"
+    if [[ ! "$ENVIRONMENT" =~ ^(development|production|staging|timeweb)$ ]]; then
+        error "Invalid environment: $ENVIRONMENT. Use: development, production, staging, or timeweb"
     fi
     
     # Check prerequisites
@@ -103,6 +103,8 @@ main() {
     
     if [[ "$ENVIRONMENT" == "production" ]]; then
         pm2 start ecosystem.config.js --env production
+    elif [[ "$ENVIRONMENT" == "timeweb" ]]; then
+        pm2 start ecosystem.config.js --env timeweb
     else
         pm2 start ecosystem.config.js --env development
     fi

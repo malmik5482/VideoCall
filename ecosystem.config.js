@@ -62,6 +62,30 @@ module.exports = {
       LOG_LEVEL: 'debug'
     },
     
+    // Timeweb production environment
+    env_timeweb: {
+      NODE_ENV: 'production',
+      PORT: 3001,
+      DOMAIN: 'malmik5482-videocall-fc69.twc1.net',
+      APP_URL: 'https://malmik5482-videocall-fc69.twc1.net',
+      
+      // TURN Server
+      TURN_SERVER: '94.198.218.189:3478',
+      TURN_USERNAME: 'webrtc', 
+      TURN_PASSWORD: 'pRr45XBJgdff9Z2Q4EdTLwOUyqudQjtN',
+      TURN_REALM: 'videocall',
+      
+      // ICE Servers
+      ICE_URLS: 'turn:94.198.218.189:3478?transport=udp,turn:94.198.218.189:3478?transport=tcp,stun:stun.l.google.com:19302',
+      TURN_USER: 'webrtc',
+      TURN_PASS: 'pRr45XBJgdff9Z2Q4EdTLwOUyqudQjtN',
+      
+      // Timeweb Settings
+      TIMEWEB_PROJECT_ID: 'malmik5482-videocall-fc69',
+      LOG_LEVEL: 'info',
+      MAX_LOG_SIZE: '50m'
+    },
+    
     // Логирование
     error_file: './logs/error.log',
     out_file: './logs/out.log',

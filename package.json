@@ -20,6 +20,7 @@
     "deploy": "./scripts/deploy.sh",
     "deploy:dev": "./scripts/deploy.sh development",
     "deploy:prod": "./scripts/deploy.sh production",
+    "deploy:timeweb": "./scripts/deploy.sh timeweb",
     "monitor": "./scripts/monitor.sh",
     "monitor:status": "./scripts/monitor.sh status",
     "monitor:health": "./scripts/monitor.sh health",
