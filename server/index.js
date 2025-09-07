@@ -11,8 +11,17 @@ const server = http.createServer(app);
 app.use(cors());
 app.use(express.json());
 
-// Serve client files
-app.use(express.static(path.join(__dirname, '../client')));
+// Serve React build files
+app.use(express.static(path.join(__dirname, '../client/dist')));
+
+// Fallback to index.html for React Router (SPA)
+app.get('*', (req, res, next) => {
+  // Skip API routes
+  if (req.path.startsWith('/api/')) {
+    return next();
+  }
+  res.sendFile(path.join(__dirname, '../client/dist/index.html'));
+});
 
 // Create WebSocket server
 const wss = new WebSocket.Server({ server });

@@ -78,11 +78,21 @@ main() {
     fi
     
     # Install dependencies
-    log "📦 Installing server dependencies..."
+    log "📦 Installing dependencies..."
+    
+    # Server dependencies
     cd server
     npm ci --only=production
     cd ..
-    success "Dependencies installed"
+    
+    # Client dependencies and build
+    log "🏗️ Building React frontend..."
+    cd client
+    npm ci
+    npm run build
+    cd ..
+    
+    success "Dependencies installed and React app built"
     
     # Stop existing services
     log "🛑 Stopping existing services..."
