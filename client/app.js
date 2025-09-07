@@ -1,791 +1,330 @@
-// 🎥 CosmosCall - Приложение для видеозвонков
-console.log('🎥 CosmosCall загружается...');
-
-// Состояние приложения
-const app = {
-    currentUser: null,
-    socket: null,
-    peerConnection: null,
-    localStream: null,
-    remoteStream: null,
-    currentCall: null,
-    isInCall: false,
-    callTimer: null,
-    callStartTime: null,
-    onlineUsers: new Map()
-};
-
-// Элементы DOM
-const elements = {
-    // Экраны
-    loginScreen: document.getElementById('loginScreen'),
-    mainScreen: document.getElementById('mainScreen'),
-    videoScreen: document.getElementById('videoScreen'),
-    incomingCallScreen: document.getElementById('incomingCallScreen'),
-    
-    // Форма входа
-    userName: document.getElementById('userName'),
-    userPhone: document.getElementById('userPhone'),
-    loginBtn: document.getElementById('loginBtn'),
-    
-    // Главный экран
-    currentUserName: document.getElementById('currentUserName'),
-    userAvatar: document.getElementById('userAvatar'),
-    logoutBtn: document.getElementById('logoutBtn'),
-    usersList: document.getElementById('usersList'),
-    onlineCount: document.getElementById('onlineCount'),
-    
-    // Входящий звонок
-    callerName: document.getElementById('callerName'),
-    acceptCall: document.getElementById('acceptCall'),
-    rejectCall: document.getElementById('rejectCall'),
-    
-    // Видеозвонок
-    localVideo: document.getElementById('localVideo'),
-    remoteVideo: document.getElementById('remoteVideo'),
-    callDuration: document.getElementById('callDuration'),
-    calleeName: document.getElementById('calleeName'),
-    toggleMic: document.getElementById('toggleMic'),
-    toggleCamera: document.getElementById('toggleCamera'),
-    toggleScreen: document.getElementById('toggleScreen'),
-    endCall: document.getElementById('endCall')
-};
-
-// === Функции управления экранами ===
-
-function showScreen(screenName) {
-    console.log(`📱 Переключение на экран: ${screenName}`);
-    
-    // Скрываем все экраны
-    document.querySelectorAll('.screen').forEach(screen => {
-        screen.classList.remove('active');
-    });
-    
-    // Показываем нужный экран
-    switch(screenName) {
-        case 'login':
-            elements.loginScreen.classList.add('active');
-            break;
-        case 'main':
-            elements.mainScreen.classList.add('active');
-            break;
-        case 'video':
-            elements.videoScreen.classList.add('active');
-            break;
-    }
-}
-
-function showIncomingCall(callerName) {
-    elements.callerName.textContent = callerName;
-    elements.incomingCallScreen.classList.add('active');
-}
-
-function hideIncomingCall() {
-    elements.incomingCallScreen.classList.remove('active');
-}
-
-// === Авторизация ===
-
-function login() {
-    const name = elements.userName.value.trim();
-    const phone = elements.userPhone.value.trim();
-    
-    if (!name || !phone) {
-        showNotification('Пожалуйста, заполните все поля', 'error');
-        return;
-    }
-    
-    console.log(`✅ Вход: ${name} (${phone})`);
-    
-    // Сохраняем пользователя
-    app.currentUser = {
-        id: Date.now().toString(),
-        name: name,
-        phone: phone,
-        avatar: name.charAt(0).toUpperCase()
-    };
-    
-    // Сохраняем в localStorage
-    localStorage.setItem('cosmosCallUser', JSON.stringify(app.currentUser));
-    
-    // Обновляем UI
-    elements.currentUserName.textContent = name;
-    elements.userAvatar.textContent = app.currentUser.avatar;
-    
-    // Подключаемся к WebSocket
-    connectWebSocket();
-    
-    // Показываем главный экран
-    showScreen('main');
-}
-
-function logout() {
-    console.log('👋 Выход из системы');
-    
-    // Завершаем звонок если есть
-    if (app.isInCall) {
-        endCall();
-    }
-    
-    // Отключаем WebSocket
-    if (app.socket) {
-        app.socket.close();
-    }
-    
-    // Очищаем данные
-    app.currentUser = null;
-    app.onlineUsers.clear();
-    localStorage.removeItem('cosmosCallUser');
-    
-    // Очищаем формы
-    elements.userName.value = '';
-    elements.userPhone.value = '';
-    
-    // Возвращаемся к логину
-    showScreen('login');
-}
-
-// === WebSocket соединение ===
-
-function connectWebSocket() {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}/ws`;
-    
-    console.log(`🌐 Подключение к WebSocket: ${wsUrl}`);
-    
-    try {
-        app.socket = new WebSocket(wsUrl);
+// Глобальные переменные и настройки
+class VideoCallApp {
+    constructor() {
+        this.websocket = null;
+        this.peerConnection = null;
+        this.localStream = null;
+        this.currentRoom = null;
+        this.userRole = null;
+        this.iceServers = [{ urls: 'stun:stun.l.google.com:19302' }];
         
-        app.socket.onopen = () => {
-            console.log('✅ WebSocket подключен');
+        // Настройки медиа
+        this.videoConstraints = {
+            width: { ideal: 1280, min: 640, max: 1920 },
+            height: { ideal: 720, min: 360, max: 1080 },
+            frameRate: { ideal: 30, max: 60 }
+        };
+        
+        this.audioConstraints = {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true
+        };
+        
+        // Флаги состояния
+        this.isVideoEnabled = true;
+        this.isAudioEnabled = true;
+        this.isScreenSharing = false;
+        
+        this.initializeElements();
+        this.attachEventListeners();
+        this.loadIceConfiguration();
+        this.loadCallHistory();
+        this.checkMediaDevices();
+    }
+    
+    initializeElements() {
+        // DOM элементы
+        this.elements = {
+            // Управление подключением
+            roomInput: document.getElementById('roomInput'),
+            joinButton: document.getElementById('joinButton'),
+            leaveButton: document.getElementById('leaveButton'),
             
-            // Регистрируем пользователя
-            sendWebSocketMessage({
-                type: 'register',
-                user: app.currentUser
+            // Статус подключения
+            statusDot: document.getElementById('statusDot'),
+            statusText: document.getElementById('statusText'),
+            connectionInfo: document.getElementById('connectionInfo'),
+            
+            // Видео элементы
+            localVideo: document.getElementById('localVideo'),
+            remoteVideo: document.getElementById('remoteVideo'),
+            
+            // Управление медиа
+            toggleVideo: document.getElementById('toggleVideo'),
+            toggleAudio: document.getElementById('toggleAudio'),
+            shareScreen: document.getElementById('shareScreen'),
+            localVideoToggle: document.getElementById('localVideoToggle'),
+            localAudioToggle: document.getElementById('localAudioToggle'),
+            
+            // Чат
+            chatMessages: document.getElementById('chatMessages'),
+            chatInput: document.getElementById('chatInput'),
+            sendMessage: document.getElementById('sendMessage'),
+            toggleChat: document.getElementById('toggleChat'),
+            chatContainer: document.getElementById('chatContainer'),
+            
+            // История
+            historyList: document.getElementById('historyList'),
+            refreshHistory: document.getElementById('refreshHistory'),
+            clearHistory: document.getElementById('clearHistory'),
+            
+            // Модальные окна
+            errorModal: document.getElementById('errorModal'),
+            errorMessage: document.getElementById('errorMessage'),
+            closeError: document.getElementById('closeError'),
+            
+            // Уведомления
+            notifications: document.getElementById('notifications')
+        };
+        
+        // Настройка видео элементов
+        this.elements.localVideo.muted = true;
+        this.elements.localVideo.playsInline = true;
+        this.elements.remoteVideo.playsInline = true;
+    }
+    
+    attachEventListeners() {
+        // Подключение к комнате
+        this.elements.joinButton.addEventListener('click', () => this.joinRoom());
+        this.elements.leaveButton.addEventListener('click', () => this.leaveRoom());
+        this.elements.roomInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') this.joinRoom();
+        });
+        
+        // Управление медиа
+        this.elements.toggleVideo.addEventListener('click', () => this.toggleVideo());
+        this.elements.toggleAudio.addEventListener('click', () => this.toggleAudio());
+        this.elements.shareScreen.addEventListener('click', () => this.toggleScreenShare());
+        this.elements.localVideoToggle.addEventListener('click', () => this.toggleVideo());
+        this.elements.localAudioToggle.addEventListener('click', () => this.toggleAudio());
+        
+        // Чат
+        this.elements.sendMessage.addEventListener('click', () => this.sendChatMessage());
+        this.elements.chatInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') this.sendChatMessage();
+        });
+        this.elements.toggleChat.addEventListener('click', () => this.toggleChatVisibility());
+        
+        // История
+        this.elements.refreshHistory.addEventListener('click', () => this.loadCallHistory());
+        this.elements.clearHistory.addEventListener('click', () => this.clearCallHistory());
+        
+        // Модальные окна
+        this.elements.closeError.addEventListener('click', () => this.hideErrorModal());
+        
+        // Обработка ошибок медиа
+        this.elements.localVideo.addEventListener('error', (e) => {
+            console.warn('Ошибка локального видео:', e);
+        });
+        this.elements.remoteVideo.addEventListener('error', (e) => {
+            console.warn('Ошибка удаленного видео:', e);
+        });
+    }
+    
+    async loadIceConfiguration() {
+        try {
+            const response = await fetch('/config');
+            const config = await response.json();
+            if (config && Array.isArray(config.iceServers)) {
+                this.iceServers = config.iceServers;
+                console.log('ICE серверы загружены:', this.iceServers.length);
+            }
+        } catch (error) {
+            console.warn('Не удалось загрузить ICE конфигурацию:', error.message);
+            this.showNotification('Использую базовые настройки подключения', 'warning');
+        }
+    }
+    
+    async checkMediaDevices() {
+        try {
+            const devices = await navigator.mediaDevices.enumerateDevices();
+            const hasVideo = devices.some(device => device.kind === 'videoinput');
+            const hasAudio = devices.some(device => device.kind === 'audioinput');
+            
+            if (!hasVideo) {
+                console.warn('Видеокамера не обнаружена');
+                this.elements.toggleVideo.disabled = true;
+            }
+            if (!hasAudio) {
+                console.warn('Микрофон не обнаружен');
+                this.elements.toggleAudio.disabled = true;
+            }
+        } catch (error) {
+            console.warn('Не удалось проверить медиа устройства:', error.message);
+        }
+    }
+    
+    async joinRoom() {
+        const roomName = this.elements.roomInput.value.trim();
+        if (!roomName) {
+            this.showError('Пожалуйста, введите код комнаты');
+            return;
+        }
+        
+        try {
+            this.setConnectionStatus('connecting', 'Подключение...');
+            await this.startLocalMedia();
+            this.connectWebSocket(roomName);
+            this.currentRoom = roomName;
+            
+            this.elements.joinButton.disabled = true;
+            this.elements.leaveButton.disabled = false;
+            this.elements.roomInput.disabled = true;
+            
+        } catch (error) {
+            console.error('Ошибка подключения к комнате:', error);
+            this.showError('Не удалось подключиться к комнате: ' + error.message);
+            this.setConnectionStatus('offline', 'Не подключено');
+        }
+    }
+    
+    leaveRoom() {
+        if (this.websocket) {
+            this.sendWebSocketMessage({ type: 'leave' });
+        }
+        
+        this.cleanup();
+        this.setConnectionStatus('offline', 'Не подключено');
+        this.elements.connectionInfo.textContent = 'Ожидание подключения...';
+        
+        this.elements.joinButton.disabled = false;
+        this.elements.leaveButton.disabled = true;
+        this.elements.roomInput.disabled = false;
+        
+        this.currentRoom = null;
+        this.userRole = null;
+        
+        this.showNotification('Вы покинули комнату', 'info');
+        this.loadCallHistory();
+    }
+    
+    cleanup() {
+        if (this.localStream) {
+            this.localStream.getTracks().forEach(track => {
+                track.stop();
+            });
+            this.localStream = null;
+        }
+        
+        if (this.peerConnection) {
+            this.peerConnection.close();
+            this.peerConnection = null;
+        }
+        
+        if (this.websocket) {
+            this.websocket.close();
+            this.websocket = null;
+        }
+        
+        this.elements.localVideo.srcObject = null;
+        this.elements.remoteVideo.srcObject = null;
+        
+        this.isScreenSharing = false;
+    }
+    
+    async startLocalMedia() {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: this.videoConstraints,
+                audio: this.audioConstraints
             });
             
-            // Запрашиваем список пользователей
-            sendWebSocketMessage({
-                type: 'get-users'
-            });
-        };
-        
-        app.socket.onmessage = (event) => {
-            const data = JSON.parse(event.data);
-            handleWebSocketMessage(data);
-        };
-        
-        app.socket.onerror = (error) => {
-            console.error('❌ Ошибка WebSocket:', error);
-            showNotification('Ошибка соединения', 'error');
-        };
-        
-        app.socket.onclose = () => {
-            console.log('🔌 WebSocket отключен');
-            // Переподключение через 3 секунды
-            if (app.currentUser) {
-                setTimeout(connectWebSocket, 3000);
+            this.localStream = stream;
+            this.elements.localVideo.srcObject = stream;
+            
+            // Настройка видеотрека для лучшего качества
+            const videoTrack = stream.getVideoTracks()[0];
+            if (videoTrack && 'contentHint' in videoTrack) {
+                videoTrack.contentHint = 'motion';
             }
-        };
-    } catch (error) {
-        console.error('❌ Не удалось создать WebSocket:', error);
+            
+            console.log('Локальный медиапоток запущен:', stream.getTracks().map(t => t.kind));
+            this.showNotification('Камера и микрофон подключены', 'success');
+            
+        } catch (error) {
+            console.error('Ошибка доступа к медиа:', error);
+            throw new Error('Не удалось получить доступ к камере/микрофону. Проверьте разрешения.');
+        }
     }
-}
-
-function sendWebSocketMessage(data) {
-    if (app.socket && app.socket.readyState === WebSocket.OPEN) {
-        app.socket.send(JSON.stringify(data));
-    } else {
-        console.warn('⚠️ WebSocket не подключен');
-    }
-}
-
-function handleWebSocketMessage(data) {
-    console.log('📨 Получено сообщение:', data.type);
     
-    switch(data.type) {
-        case 'users-list':
-            updateUsersList(data.users || []);
-            break;
-            
-        case 'user-joined':
-            if (data.user && data.user.id !== app.currentUser.id) {
-                app.onlineUsers.set(data.user.id, data.user);
-                updateUsersDisplay();
-                showNotification(`${data.user.name} теперь онлайн`, 'success');
+    connectWebSocket(roomName) {
+        const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = `${protocol}//${location.host}/ws`;
+        
+        this.websocket = new WebSocket(wsUrl);
+        
+        this.websocket.onopen = () => {
+            console.log('WebSocket подключен');
+            this.sendWebSocketMessage({ type: 'join', room: roomName });
+        };
+        
+        this.websocket.onmessage = (event) => {
+            this.handleWebSocketMessage(JSON.parse(event.data));
+        };
+        
+        this.websocket.onerror = (error) => {
+            console.error('WebSocket ошибка:', error);
+            this.showError('Ошибка подключения к серверу');
+        };
+        
+        this.websocket.onclose = () => {
+            console.log('WebSocket отключен');
+            if (this.currentRoom) {
+                this.setConnectionStatus('offline', 'Соединение разорвано');
             }
-            break;
-            
-        case 'user-left':
-            if (data.userId) {
-                const user = app.onlineUsers.get(data.userId);
-                if (user) {
-                    app.onlineUsers.delete(data.userId);
-                    updateUsersDisplay();
-                    showNotification(`${user.name} вышел из сети`, 'info');
+        };
+    }
+    
+    sendWebSocketMessage(message) {
+        if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
+            this.websocket.send(JSON.stringify(message));
+        }
+    }
+    
+    async handleWebSocketMessage(message) {
+        console.log('Получено сообщение:', message.type);
+        
+        switch (message.type) {
+            case 'role':
+                this.userRole = message.role;
+                console.log('Роль пользователя:', this.userRole);
+                break;
+                
+            case 'ready':
+                this.setConnectionStatus('online', `Подключено к комнате "${this.currentRoom}"`);
+                if (this.userRole === 'caller') {
+                    await this.createOffer();
                 }
-            }
-            break;
-            
-        case 'incoming-call':
-            handleIncomingCall(data);
-            break;
-            
-        case 'call-accepted':
-            console.log('✅ Звонок принят');
-            break;
-            
-        case 'call-rejected':
-            console.log('❌ Звонок отклонен');
-            showNotification('Звонок отклонен', 'error');
-            endCall();
-            break;
-            
-        case 'webrtc-offer':
-            handleWebRTCOffer(data);
-            break;
-            
-        case 'webrtc-answer':
-            handleWebRTCAnswer(data);
-            break;
-            
-        case 'webrtc-ice':
-            handleWebRTCIce(data);
-            break;
-            
-        case 'call-ended':
-            handleCallEnded();
-            break;
-    }
-}
-
-// === Управление списком пользователей ===
-
-function updateUsersList(users) {
-    app.onlineUsers.clear();
-    
-    users.forEach(user => {
-        if (user.id !== app.currentUser?.id) {
-            app.onlineUsers.set(user.id, user);
-        }
-    });
-    
-    updateUsersDisplay();
-}
-
-function updateUsersDisplay() {
-    elements.usersList.innerHTML = '';
-    elements.onlineCount.textContent = app.onlineUsers.size;
-    
-    if (app.onlineUsers.size === 0) {
-        elements.usersList.innerHTML = `
-            <div style="text-align: center; padding: 40px; color: #999;">
-                <p>😴 Пока никого нет онлайн</p>
-                <p style="font-size: 14px; margin-top: 10px;">Ожидайте других пользователей</p>
-            </div>
-        `;
-        return;
-    }
-    
-    app.onlineUsers.forEach(user => {
-        const userCard = document.createElement('div');
-        userCard.className = 'user-card';
-        userCard.innerHTML = `
-            <div class="user-card-avatar">${user.avatar || user.name.charAt(0).toUpperCase()}</div>
-            <div class="user-card-info">
-                <div class="user-card-name">${user.name}</div>
-                <div class="user-card-status">
-                    <span style="color: #00d26a;">● Онлайн</span>
-                </div>
-            </div>
-            <div class="user-card-call">📞</div>
-        `;
-        
-        userCard.addEventListener('click', () => startCall(user));
-        elements.usersList.appendChild(userCard);
-    });
-}
-
-// === WebRTC Видеозвонки ===
-
-async function startCall(targetUser) {
-    if (!targetUser) {
-        showNotification('Выберите пользователя для звонка', 'error');
-        return;
-    }
-    
-    if (app.isInCall) {
-        showNotification('Вы уже в звонке', 'warning');
-        return;
-    }
-    
-    console.log(`📞 Начинаем звонок с ${targetUser.name}`);
-    
-    app.currentCall = targetUser;
-    app.isInCall = true;
-    
-    try {
-        // Получаем доступ к камере и микрофону
-        app.localStream = await navigator.mediaDevices.getUserMedia({
-            video: {
-                width: { ideal: 1280 },
-                height: { ideal: 720 }
-            },
-            audio: true
-        });
-        
-        elements.localVideo.srcObject = app.localStream;
-        elements.calleeName.textContent = targetUser.name;
-        
-        // Показываем экран звонка
-        showScreen('video');
-        
-        // Создаем WebRTC соединение
-        createPeerConnection();
-        
-        // Создаем offer
-        const offer = await app.peerConnection.createOffer();
-        await app.peerConnection.setLocalDescription(offer);
-        
-        // Отправляем предложение о звонке
-        sendWebSocketMessage({
-            type: 'call-offer',
-            offer: offer,
-            to: targetUser.id,
-            from: app.currentUser
-        });
-        
-        showNotification(`Звоним ${targetUser.name}...`, 'info');
-        
-    } catch (error) {
-        console.error('❌ Ошибка при начале звонка:', error);
-        showNotification('Не удалось получить доступ к камере и микрофону', 'error');
-        app.isInCall = false;
-    }
-}
-
-function createPeerConnection() {
-    const configuration = {
-        iceServers: [
-            { urls: 'stun:stun.l.google.com:19302' },
-            { urls: 'stun:stun1.l.google.com:19302' },
-            {
-                urls: 'turn:94.198.218.189:3478',
-                username: 'webrtc',
-                credential: 'pRr45XBJgdff9Z2Q4EdTLwOUyqudQjtN'
-            }
-        ]
-    };
-    
-    app.peerConnection = new RTCPeerConnection(configuration);
-    
-    // Добавляем локальный поток
-    if (app.localStream) {
-        app.localStream.getTracks().forEach(track => {
-            app.peerConnection.addTrack(track, app.localStream);
-        });
-    }
-    
-    // Обработка входящего потока
-    app.peerConnection.ontrack = (event) => {
-        console.log('📹 Получен удаленный поток');
-        elements.remoteVideo.srcObject = event.streams[0];
-        app.remoteStream = event.streams[0];
-        startCallTimer();
-    };
-    
-    // Обработка ICE кандидатов
-    app.peerConnection.onicecandidate = (event) => {
-        if (event.candidate) {
-            sendWebSocketMessage({
-                type: 'webrtc-ice',
-                candidate: event.candidate,
-                to: app.currentCall?.id
-            });
-        }
-    };
-    
-    // Обработка изменения состояния соединения
-    app.peerConnection.onconnectionstatechange = () => {
-        console.log('📡 Состояние соединения:', app.peerConnection.connectionState);
-        
-        if (app.peerConnection.connectionState === 'disconnected' || 
-            app.peerConnection.connectionState === 'failed') {
-            endCall();
-        }
-    };
-}
-
-function handleIncomingCall(data) {
-    if (app.isInCall) {
-        // Автоматически отклоняем если уже в звонке
-        sendWebSocketMessage({
-            type: 'call-rejected',
-            to: data.from.id
-        });
-        return;
-    }
-    
-    app.currentCall = data.from;
-    showIncomingCall(data.from.name);
-}
-
-async function acceptIncomingCall() {
-    console.log('✅ Принимаем звонок');
-    hideIncomingCall();
-    
-    app.isInCall = true;
-    
-    try {
-        // Получаем доступ к медиа
-        app.localStream = await navigator.mediaDevices.getUserMedia({
-            video: {
-                width: { ideal: 1280 },
-                height: { ideal: 720 }
-            },
-            audio: true
-        });
-        
-        elements.localVideo.srcObject = app.localStream;
-        elements.calleeName.textContent = app.currentCall.name;
-        
-        // Показываем экран звонка
-        showScreen('video');
-        
-        // Отправляем подтверждение
-        sendWebSocketMessage({
-            type: 'call-accepted',
-            to: app.currentCall.id
-        });
-        
-    } catch (error) {
-        console.error('❌ Ошибка при приеме звонка:', error);
-        showNotification('Не удалось получить доступ к камере и микрофону', 'error');
-        rejectIncomingCall();
-    }
-}
-
-function rejectIncomingCall() {
-    console.log('❌ Отклоняем звонок');
-    hideIncomingCall();
-    
-    if (app.currentCall) {
-        sendWebSocketMessage({
-            type: 'call-rejected',
-            to: app.currentCall.id
-        });
-        app.currentCall = null;
-    }
-}
-
-async function handleWebRTCOffer(data) {
-    console.log('📥 Получен WebRTC offer');
-    
-    if (!app.isInCall) {
-        return;
-    }
-    
-    // Создаем соединение
-    createPeerConnection();
-    
-    try {
-        // Устанавливаем удаленное описание
-        await app.peerConnection.setRemoteDescription(data.offer);
-        
-        // Создаем answer
-        const answer = await app.peerConnection.createAnswer();
-        await app.peerConnection.setLocalDescription(answer);
-        
-        // Отправляем answer
-        sendWebSocketMessage({
-            type: 'webrtc-answer',
-            answer: answer,
-            to: app.currentCall.id
-        });
-        
-    } catch (error) {
-        console.error('❌ Ошибка при обработке offer:', error);
-    }
-}
-
-async function handleWebRTCAnswer(data) {
-    console.log('📥 Получен WebRTC answer');
-    
-    try {
-        await app.peerConnection.setRemoteDescription(data.answer);
-    } catch (error) {
-        console.error('❌ Ошибка при обработке answer:', error);
-    }
-}
-
-async function handleWebRTCIce(data) {
-    console.log('🧊 Получен ICE кандидат');
-    
-    if (app.peerConnection) {
-        try {
-            await app.peerConnection.addIceCandidate(data.candidate);
-        } catch (error) {
-            console.error('❌ Ошибка при добавлении ICE кандидата:', error);
+                break;
+                
+            case 'offer':
+                await this.handleOffer(message.sdp);
+                break;
+                
+            case 'answer':
+                await this.handleAnswer(message.sdp);
+                break;
+                
+            case 'ice-candidate':
+                await this.handleIceCandidate(message.candidate);
+                break;
+                
+            case 'peer-left':
+                this.handlePeerLeft();
+                break;
+                
+            case 'room-full':
+                this.showError('В комнате уже максимальное количество участников');
+                this.leaveRoom();
+                break;
+                
+            case 'chat':
+                this.displayChatMessage(message.text, false);
+                break;
+                
+            case 'goodbye':
+                console.log('Получено прощание от сервера');
+                break;
         }
     }
-}
-
-function endCall() {
-    console.log('📞 Завершение звонка');
-    
-    // Останавливаем таймер
-    stopCallTimer();
-    
-    // Останавливаем локальный поток
-    if (app.localStream) {
-        app.localStream.getTracks().forEach(track => track.stop());
-        app.localStream = null;
-    }
-    
-    // Закрываем соединение
-    if (app.peerConnection) {
-        app.peerConnection.close();
-        app.peerConnection = null;
-    }
-    
-    // Очищаем видео элементы
-    elements.localVideo.srcObject = null;
-    elements.remoteVideo.srcObject = null;
-    
-    // Отправляем уведомление о завершении
-    if (app.currentCall) {
-        sendWebSocketMessage({
-            type: 'call-ended',
-            to: app.currentCall.id
-        });
-    }
-    
-    // Сбрасываем состояние
-    app.isInCall = false;
-    app.currentCall = null;
-    app.remoteStream = null;
-    
-    // Возвращаемся на главный экран
-    showScreen('main');
-}
-
-function handleCallEnded() {
-    console.log('📞 Собеседник завершил звонок');
-    showNotification('Звонок завершен', 'info');
-    endCall();
-}
-
-// === Управление медиа ===
-
-function toggleMicrophone() {
-    if (app.localStream) {
-        const audioTrack = app.localStream.getAudioTracks()[0];
-        if (audioTrack) {
-            audioTrack.enabled = !audioTrack.enabled;
-            elements.toggleMic.classList.toggle('muted', !audioTrack.enabled);
-            console.log(`🎤 Микрофон: ${audioTrack.enabled ? 'включен' : 'выключен'}`);
-        }
-    }
-}
-
-function toggleCamera() {
-    if (app.localStream) {
-        const videoTrack = app.localStream.getVideoTracks()[0];
-        if (videoTrack) {
-            videoTrack.enabled = !videoTrack.enabled;
-            elements.toggleCamera.classList.toggle('muted', !videoTrack.enabled);
-            console.log(`📹 Камера: ${videoTrack.enabled ? 'включена' : 'выключена'}`);
-        }
-    }
-}
-
-async function toggleScreenShare() {
-    try {
-        if (!app.isScreenSharing) {
-            // Начинаем демонстрацию экрана
-            const screenStream = await navigator.mediaDevices.getDisplayMedia({
-                video: true,
-                audio: false
-            });
-            
-            const videoTrack = screenStream.getVideoTracks()[0];
-            const sender = app.peerConnection.getSenders().find(
-                s => s.track && s.track.kind === 'video'
-            );
-            
-            if (sender) {
-                sender.replaceTrack(videoTrack);
-            }
-            
-            videoTrack.onended = () => {
-                toggleScreenShare();
-            };
-            
-            app.isScreenSharing = true;
-            elements.toggleScreen.classList.add('active');
-            console.log('🖥️ Демонстрация экрана начата');
-            
-        } else {
-            // Возвращаемся к камере
-            const videoTrack = app.localStream.getVideoTracks()[0];
-            const sender = app.peerConnection.getSenders().find(
-                s => s.track && s.track.kind === 'video'
-            );
-            
-            if (sender && videoTrack) {
-                sender.replaceTrack(videoTrack);
-            }
-            
-            app.isScreenSharing = false;
-            elements.toggleScreen.classList.remove('active');
-            console.log('📹 Вернулись к камере');
-        }
-    } catch (error) {
-        console.error('❌ Ошибка демонстрации экрана:', error);
-        showNotification('Не удалось начать демонстрацию экрана', 'error');
-    }
-}
-
-// === Таймер звонка ===
-
-function startCallTimer() {
-    app.callStartTime = Date.now();
-    app.callTimer = setInterval(updateCallDuration, 1000);
-}
-
-function stopCallTimer() {
-    if (app.callTimer) {
-        clearInterval(app.callTimer);
-        app.callTimer = null;
-    }
-    app.callStartTime = null;
-    elements.callDuration.textContent = '00:00';
-}
-
-function updateCallDuration() {
-    if (!app.callStartTime) return;
-    
-    const duration = Math.floor((Date.now() - app.callStartTime) / 1000);
-    const minutes = Math.floor(duration / 60);
-    const seconds = duration % 60;
-    
-    elements.callDuration.textContent = 
-        `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-}
-
-// === Уведомления ===
-
-function showNotification(message, type = 'info') {
-    console.log(`💬 ${type.toUpperCase()}: ${message}`);
-    
-    // Можно добавить визуальные уведомления
-    const colors = {
-        success: '#00d26a',
-        error: '#f5576c',
-        warning: '#ffc107',
-        info: '#667eea'
-    };
-    
-    const notification = document.createElement('div');
-    notification.style.cssText = `
-        position: fixed;
-        top: 20px;
-        right: 20px;
-        padding: 15px 20px;
-        background: ${colors[type] || colors.info};
-        color: white;
-        border-radius: 10px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-        z-index: 10000;
-        animation: slideIn 0.3s ease;
-        font-size: 14px;
-        font-weight: 500;
-    `;
-    notification.textContent = message;
-    
-    document.body.appendChild(notification);
-    
-    setTimeout(() => {
-        notification.style.animation = 'slideOut 0.3s ease';
-        setTimeout(() => notification.remove(), 300);
-    }, 3000);
-}
-
-// === Обработчики событий ===
-
-// Вход
-elements.loginBtn.addEventListener('click', login);
-elements.userName.addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') elements.userPhone.focus();
-});
-elements.userPhone.addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') login();
-});
-
-// Выход
-elements.logoutBtn.addEventListener('click', logout);
-
-// Входящий звонок
-elements.acceptCall.addEventListener('click', acceptIncomingCall);
-elements.rejectCall.addEventListener('click', rejectIncomingCall);
-
-// Управление звонком
-elements.endCall.addEventListener('click', endCall);
-elements.toggleMic.addEventListener('click', toggleMicrophone);
-elements.toggleCamera.addEventListener('click', toggleCamera);
-elements.toggleScreen.addEventListener('click', toggleScreenShare);
-
-// === Инициализация приложения ===
-
-window.addEventListener('DOMContentLoaded', () => {
-    console.log('🎥 CosmosCall готов к работе!');
-    
-    // Добавляем стили для анимаций
-    const style = document.createElement('style');
-    style.textContent = `
-        @keyframes slideIn {
-            from { transform: translateX(100%); opacity: 0; }
-            to { transform: translateX(0); opacity: 1; }
-        }
-        @keyframes slideOut {
-            from { transform: translateX(0); opacity: 1; }
-            to { transform: translateX(100%); opacity: 0; }
-        }
-    `;
-    document.head.appendChild(style);
-    
-    // Проверяем сохраненного пользователя
-    const savedUser = localStorage.getItem('cosmosCallUser');
-    if (savedUser) {
-        try {
-            app.currentUser = JSON.parse(savedUser);
-            elements.currentUserName.textContent = app.currentUser.name;
-            elements.userAvatar.textContent = app.currentUser.avatar;
-            connectWebSocket();
-            showScreen('main');
-            console.log(`✅ Автовход: ${app.currentUser.name}`);
-        } catch (error) {
-            console.error('❌ Ошибка автовхода:', error);
-            showScreen('login');
-        }
-    } else {
-        showScreen('login');
-    }
-});
-
-// Обработка закрытия страницы
-window.addEventListener('beforeunload', () => {
-    if (app.isInCall) {
-        endCall();
-    }
-    if (app.socket) {
-        sendWebSocketMessage({
-            type: 'user-leaving',
-            userId: app.currentUser?.id
-        });
-        app.socket.close();
-    }
-});
-
-console.log('✅ CosmosCall загружен и готов к видеозвонкам!');

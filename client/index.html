@@ -3,169 +3,173 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🎥 CosmosCall - Видеозвонки</title>
-    <link rel="stylesheet" href="styles.css">
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <title>VideoCall - Видеозвонки</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="icon" href="image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📹</text></svg>">
 </head>
 <body>
-    <!-- Фоновая анимация -->
-    <div class="animated-bg">
-        <div class="bubble"></div>
-        <div class="bubble"></div>
-        <div class="bubble"></div>
-        <div class="bubble"></div>
-        <div class="bubble"></div>
-    </div>
-
-    <!-- Экран авторизации -->
-    <div id="loginScreen" class="screen active">
-        <div class="login-container">
-            <div class="logo">
-                <div class="logo-icon">🎥</div>
-                <h1>CosmosCall</h1>
-                <p>Видеозвонки без границ</p>
-            </div>
-            
-            <div class="login-form">
-                <div class="input-group">
-                    <input type="text" id="userName" placeholder=" " required>
-                    <label for="userName">👤 Ваше имя</label>
-                    <div class="input-line"></div>
-                </div>
-                
-                <div class="input-group">
-                    <input type="tel" id="userPhone" placeholder=" " required>
-                    <label for="userPhone">📱 Телефон</label>
-                    <div class="input-line"></div>
-                </div>
-                
-                <button id="loginBtn" class="btn-login">
-                    <span class="btn-text">Войти</span>
-                    <span class="btn-icon">→</span>
-                </button>
+    <header class="header">
+        <div class="header-content">
+            <h1>📹 VideoCall</h1>
+            <div class="connection-status" id="connectionStatus">
+                <span class="status-dot offline" id="statusDot"></span>
+                <span id="statusText">Не подключено</span>
             </div>
         </div>
-    </div>
+    </header>
 
-    <!-- Главный экран с пользователями -->
-    <div id="mainScreen" class="screen">
-        <div class="main-container">
-            <!-- Заголовок -->
-            <header class="main-header">
-                <div class="header-left">
-                    <h2>🎥 CosmosCall</h2>
-                </div>
-                <div class="header-center">
-                    <div class="user-badge">
-                        <span class="user-avatar" id="userAvatar">👤</span>
-                        <span id="currentUserName">Пользователь</span>
-                        <span class="status-dot online"></span>
-                    </div>
-                </div>
-                <div class="header-right">
-                    <button id="logoutBtn" class="btn-logout">
-                        <span>Выйти</span>
+    <main class="main-content">
+        <!-- Панель управления -->
+        <section class="control-panel">
+            <div class="room-controls">
+                <input 
+                    type="text" 
+                    id="roomInput" 
+                    placeholder="Введите код комнаты" 
+                    maxlength="20"
+                    autocomplete="off"
+                >
+                <button id="joinButton" class="btn btn-primary">
+                    <span class="btn-icon">🚪</span>
+                    Присоединиться
+                </button>
+                <button id="leaveButton" class="btn btn-danger" disabled>
+                    <span class="btn-icon">🚪</span>
+                    Покинуть комнату
+                </button>
+            </div>
+            
+            <div class="media-controls">
+                <button id="toggleVideo" class="btn btn-secondary">
+                    <span class="btn-icon">📹</span>
+                    Видео вкл
+                </button>
+                <button id="toggleAudio" class="btn btn-secondary">
+                    <span class="btn-icon">🎤</span>
+                    Звук вкл
+                </button>
+                <button id="shareScreen" class="btn btn-secondary">
+                    <span class="btn-icon">🖥️</span>
+                    Демонстрация экрана
+                </button>
+            </div>
+        </section>
+
+        <!-- Видео контейнер -->
+        <section class="video-container">
+            <div class="video-wrapper local-video">
+                <video 
+                    id="localVideo" 
+                    autoplay 
+                    muted 
+                    playsinline
+                    poster="image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 300'><rect width='100%25' height='100%25' fill='%23222'/><text x='50%25' y='50%25' text-anchor='middle' fill='%23666' font-size='16'>Ваше видео</text></svg>"
+                ></video>
+                <div class="video-label">Вы</div>
+                <div class="video-controls">
+                    <button id="localVideoToggle" class="video-control-btn">
+                        <span>📹</span>
+                    </button>
+                    <button id="localAudioToggle" class="video-control-btn">
+                        <span>🎤</span>
                     </button>
                 </div>
-            </header>
-
-            <!-- Основной контент -->
-            <div class="main-content">
-                <!-- Список пользователей онлайн -->
-                <aside class="users-sidebar">
-                    <div class="sidebar-header">
-                        <h3>👥 Пользователи онлайн</h3>
-                        <span id="onlineCount" class="online-count">0</span>
-                    </div>
-                    <div id="usersList" class="users-list">
-                        <!-- Пользователи будут добавлены динамически -->
-                    </div>
-                    <div class="sidebar-footer">
-                        <p class="hint">💡 Нажмите на пользователя для звонка</p>
-                    </div>
-                </aside>
-
-                <!-- Центральная область -->
-                <main class="center-area">
-                    <div class="welcome-screen">
-                        <div class="welcome-content">
-                            <div class="welcome-icon">🚀</div>
-                            <h2>Добро пожаловать в CosmosCall!</h2>
-                            <p>Выберите пользователя из списка слева, чтобы начать видеозвонок</p>
-                            
-                            <div class="features">
-                                <div class="feature">
-                                    <span class="feature-icon">🎥</span>
-                                    <span>HD видео</span>
-                                </div>
-                                <div class="feature">
-                                    <span class="feature-icon">🔒</span>
-                                    <span>Безопасное соединение</span>
-                                </div>
-                                <div class="feature">
-                                    <span class="feature-icon">⚡</span>
-                                    <span>Мгновенное подключение</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </main>
             </div>
+            
+            <div class="video-wrapper remote-video">
+                <video 
+                    id="remoteVideo" 
+                    autoplay 
+                    playsinline
+                    poster="image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 300'><rect width='100%25' height='100%25' fill='%23222'/><text x='50%25' y='50%25' text-anchor='middle' fill='%23666' font-size='16'>Ожидание собеседника...</text></svg>"
+                ></video>
+                <div class="video-label">Собеседник</div>
+                <div class="connection-info" id="connectionInfo">
+                    Ожидание подключения...
+                </div>
+            </div>
+        </section>
+
+        <!-- Чат -->
+        <section class="chat-section">
+            <div class="chat-header">
+                <h3>💬 Чат</h3>
+                <button id="toggleChat" class="btn btn-small">Свернуть</button>
+            </div>
+            <div class="chat-container" id="chatContainer">
+                <div class="chat-messages" id="chatMessages"></div>
+                <div class="chat-input-container">
+                    <input 
+                        type="text" 
+                        id="chatInput" 
+                        placeholder="Введите сообщение..." 
+                        maxlength="200"
+                        autocomplete="off"
+                    >
+                    <button id="sendMessage" class="btn btn-primary">
+                        <span class="btn-icon">📤</span>
+                        Отправить
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- История звонков -->
+        <section class="history-section">
+            <div class="history-header">
+                <h3>📊 История звонков</h3>
+                <div class="history-controls">
+                    <button id="refreshHistory" class="btn btn-small">
+                        <span class="btn-icon">🔄</span>
+                        Обновить
+                    </button>
+                    <button id="clearHistory" class="btn btn-small btn-danger">
+                        <span class="btn-icon">🗑️</span>
+                        Очистить
+                    </button>
+                </div>
+            </div>
+            <div class="history-list" id="historyList">
+                <div class="history-empty">История звонков пуста</div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Уведомления -->
+    <div id="notifications" class="notifications"></div>
+
+    <!-- Модальное окно ошибок -->
+    <div id="errorModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <h3>❌ Ошибка</h3>
+            <p id="errorMessage"></p>
+            <button id="closeError" class="btn btn-primary">Понятно</button>
         </div>
     </div>
 
-    <!-- Экран входящего звонка -->
-    <div id="incomingCallScreen" class="modal-overlay">
-        <div class="incoming-call-modal">
-            <div class="pulse-ring"></div>
-            <div class="caller-avatar">👤</div>
-            <h2>Входящий звонок</h2>
-            <p id="callerName">Неизвестный</p>
-            
-            <div class="call-actions">
-                <button id="acceptCall" class="btn-accept">
-                    <span>✅</span>
-                    Принять
-                </button>
-                <button id="rejectCall" class="btn-reject">
-                    <span>❌</span>
-                    Отклонить
-                </button>
+    <!-- Модальное окно настроек -->
+    <div id="settingsModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <h3>⚙️ Настройки видео</h3>
+            <div class="settings-group">
+                <label>Качество видео:</label>
+                <select id="videoQuality">
+                    <option value="hd">HD (1280x720)</option>
+                    <option value="sd">SD (640x480)</option>
+                    <option value="low">Низкое (320x240)</option>
+                </select>
             </div>
-        </div>
-    </div>
-
-    <!-- Экран видеозвонка -->
-    <div id="videoScreen" class="screen">
-        <div class="video-container">
-            <!-- Удаленное видео (полный экран) -->
-            <video id="remoteVideo" class="video-remote" autoplay playsinline></video>
-            
-            <!-- Локальное видео (картинка в картинке) -->
-            <div class="video-local-wrapper">
-                <video id="localVideo" class="video-local" autoplay muted playsinline></video>
+            <div class="settings-group">
+                <label>Частота кадров:</label>
+                <select id="frameRate">
+                    <option value="30">30 FPS</option>
+                    <option value="15">15 FPS</option>
+                    <option value="10">10 FPS</option>
+                </select>
             </div>
-            
-            <!-- Информация о звонке -->
-            <div class="call-info">
-                <span id="callDuration">00:00</span>
-                <span id="calleeName">Собеседник</span>
-            </div>
-            
-            <!-- Контролы видео -->
-            <div class="video-controls">
-                <button id="toggleMic" class="btn-control" title="Микрофон">
-                    <span class="control-icon">🎤</span>
-                </button>
-                <button id="toggleCamera" class="btn-control" title="Камера">
-                    <span class="control-icon">📹</span>
-                </button>
-                <button id="toggleScreen" class="btn-control" title="Демонстрация экрана">
-                    <span class="control-icon">🖥️</span>
-                </button>
-                <button id="endCall" class="btn-end-call" title="Завершить звонок">
-                    <span class="control-icon">📞</span>
-                </button>
+            <div class="modal-actions">
+                <button id="applySettings" class="btn btn-primary">Применить</button>
+                <button id="closeSettings" class="btn btn-secondary">Отмена</button>
             </div>
         </div>
     </div>
