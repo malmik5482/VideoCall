@@ -1,0 +1,21 @@
+{
+  "name": "videocall-client",
+  "version": "1.0.0",
+  "description": "VideoCall frontend client application",
+  "main": "index.html",
+  "scripts": {
+    "start": "serve -s build",
+    "dev": "live-server --port=3000",
+    "build": "echo 'Build script placeholder'"
+  },
+  "dependencies": {
+    "socket.io-client": "^4.7.2"
+  },
+  "devDependencies": {
+    "live-server": "^1.2.2",
+    "serve": "^14.2.1"
+  },
+  "keywords": ["videocall", "webrtc", "frontend", "client"],
+  "author": "malmik5482",
+  "license": "MIT"
+}
