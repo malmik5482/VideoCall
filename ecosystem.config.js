@@ -1,8 +1,8 @@
 module.exports = {
   apps: [{
-    // Основное приложение CosmosChat
-    name: 'cosmoschat',
-    script: './server/server.js',
+    // Основное приложение VideoCall
+    name: 'videocall-server',
+    script: './server/index.js',
     instances: 1,
     exec_mode: 'fork',
     
@@ -16,7 +16,7 @@ module.exports = {
     // Переменные окружения для продакшена
     env: {
       NODE_ENV: 'production',
-      PORT: 3000,
+      PORT: 3001,
       
       // TURN сервер для WebRTC (VPS 94.198.218.189)
       TURN_SERVER: '94.198.218.189:3478',
@@ -55,7 +55,7 @@ module.exports = {
     // Переменные окружения для разработки
     env_development: {
       NODE_ENV: 'development',
-      PORT: 3000,
+      PORT: 3001,
       TURN_SERVER: '94.198.218.189:3478',
       TURN_USERNAME: 'webrtc',
       TURN_PASSWORD: 'pRr45XBJgdff9Z2Q4EdTLwOUyqudQjtN',

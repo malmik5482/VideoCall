@@ -1,0 +1,60 @@
+version: '3.8'
+
+services:
+  videocall-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: videocall:latest
+    container_name: videocall-server
+    restart: unless-stopped
+    
+    ports:
+      - "3001:3001"
+    
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+      # TURN Server Configuration
+      - TURN_SERVER=94.198.218.189:3478
+      - TURN_USERNAME=webrtc
+      - TURN_PASSWORD=pRr45XBJgdff9Z2Q4EdTLwOUyqudQjtN
+      - TURN_REALM=videocall
+      # ICE Servers
+      - ICE_URLS=turn:94.198.218.189:3478?transport=udp,turn:94.198.218.189:3478?transport=tcp,stun:stun.l.google.com:19302
+      - TURN_USER=webrtc
+      - TURN_PASS=pRr45XBJgdff9Z2Q4EdTLwOUyqudQjtN
+      # Logging
+      - LOG_LEVEL=info
+    
+    volumes:
+      - ./logs:/app/logs
+      - /etc/localtime:/etc/localtime:ro
+    
+    networks:
+      - videocall-network
+    
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3001/api/status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+        reservations:
+          memory: 256M
+          cpus: '0.25'
+
+networks:
+  videocall-network:
+    driver: bridge
+
+volumes:
+  videocall-logs:
+    driver: local
