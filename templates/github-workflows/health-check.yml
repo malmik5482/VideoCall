@@ -1,0 +1,76 @@
+name: Health Check & Monitoring
+
+on:
+  schedule:
+    # Run every 30 minutes
+    - cron: '*/30 * * * *'
+  workflow_dispatch: # Allow manual trigger
+
+jobs:
+  health-check:
+    name: Service Health Check
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: 🏥 Check Server Health
+      run: |
+        echo "🔍 Performing health check..."
+        
+        # Health check URLs (replace with actual deployment URLs)
+        HEALTH_URLS=(
+          "https://3001-iatfdyultkx4pop8tewuq-6532622b.e2b.dev/api/status"
+        )
+        
+        for url in "${HEALTH_URLS[@]}"; do
+          echo "📡 Checking: $url"
+          
+          # Perform health check with timeout
+          if curl -f -s --connect-timeout 10 --max-time 30 "$url" > /dev/null; then
+            echo "✅ $url is healthy"
+          else
+            echo "❌ $url is down or unhealthy"
+            echo "::warning::Health check failed for $url"
+          fi
+        done
+        
+    - name: 🌐 Check TURN Server
+      run: |
+        echo "🔍 Checking TURN server connectivity..."
+        
+        # Check if TURN server is reachable
+        TURN_SERVER="94.198.218.189"
+        TURN_PORT="3478"
+        
+        if nc -z -w5 "$TURN_SERVER" "$TURN_PORT" 2>/dev/null; then
+          echo "✅ TURN server $TURN_SERVER:$TURN_PORT is reachable"
+        else
+          echo "❌ TURN server $TURN_SERVER:$TURN_PORT is not reachable"
+          echo "::warning::TURN server connectivity issue"
+        fi
+        
+    - name: 📊 Performance Check
+      run: |
+        echo "⚡ Running basic performance checks..."
+        
+        # Check response times (replace with actual URLs)
+        TEST_URL="https://3001-iatfdyultkx4pop8tewuq-6532622b.e2b.dev/api/status"
+        
+        echo "🕐 Measuring response time for: $TEST_URL"
+        
+        # Measure response time
+        RESPONSE_TIME=$(curl -o /dev/null -s -w "%{time_total}" "$TEST_URL" 2>/dev/null || echo "timeout")
+        
+        if [[ "$RESPONSE_TIME" != "timeout" ]]; then
+          echo "⚡ Response time: ${RESPONSE_TIME}s"
+          
+          # Check if response time is acceptable (< 2 seconds)
+          if (( $(echo "$RESPONSE_TIME < 2.0" | bc -l) )); then
+            echo "✅ Response time is acceptable"
+          else
+            echo "⚠️ Response time is slow (>${RESPONSE_TIME}s)"
+            echo "::warning::Slow response time detected: ${RESPONSE_TIME}s"
+          fi
+        else
+          echo "❌ Request timed out"
+          echo "::error::Health check request timed out"
+        fi
