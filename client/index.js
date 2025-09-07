@@ -9,17 +9,30 @@ let localStream = null;
 let peerConnection = null;
 let websocket = null;
 
-// WebRTC конфигурация
-const configuration = {
+// WebRTC конфигурация (будет обновлена с сервера)
+let configuration = {
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' }
   ]
 };
 
+// Получение ICE конфигурации с сервера
+async function loadIceConfiguration() {
+  try {
+    const response = await fetch('/api/ice-config');
+    const config = await response.json();
+    configuration = config;
+    console.log('ICE конфигурация загружена:', configuration);
+  } catch (error) {
+    console.error('Ошибка загрузки ICE конфигурации:', error);
+  }
+}
+
 // WebSocket соединение
 function connectWebSocket() {
-  const wsUrl = `ws://${window.location.hostname}:3001`;
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const wsUrl = `${protocol}//${window.location.host}`;
   websocket = new WebSocket(wsUrl);
   
   websocket.onopen = () => {
@@ -218,8 +231,9 @@ startBtn.addEventListener('click', startCall);
 endBtn.addEventListener('click', endCall);
 
 // Инициализация при загрузке страницы
-window.addEventListener('load', () => {
+window.addEventListener('load', async () => {
   console.log('VideoCall Client инициализирован');
+  await loadIceConfiguration();
   connectWebSocket();
   updateStatus('Готов к подключению', 'disconnected');
 });

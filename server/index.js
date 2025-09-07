@@ -2,6 +2,7 @@ const express = require('express');
 const http = require('http');
 const WebSocket = require('ws');
 const cors = require('cors');
+const path = require('path');
 
 const app = express();
 const server = http.createServer(app);
@@ -9,6 +10,9 @@ const server = http.createServer(app);
 // Enable CORS
 app.use(cors());
 app.use(express.json());
+
+// Serve client files
+app.use(express.static(path.join(__dirname, '../client')));
 
 // Create WebSocket server
 const wss = new WebSocket.Server({ server });
@@ -33,9 +37,32 @@ wss.on('connection', (ws) => {
   });
 });
 
-// Basic route
-app.get('/', (req, res) => {
-  res.json({ message: 'VideoCall Server is running!' });
+// API routes
+app.get('/api/status', (req, res) => {
+  res.json({ 
+    message: 'VideoCall Server is running!',
+    connections: wss.clients.size,
+    timestamp: new Date().toISOString()
+  });
+});
+
+// ICE servers configuration with TURN server for Russian mobile networks
+app.get('/api/ice-config', (req, res) => {
+  const iceServers = [
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' },
+    // TURN server for Russian mobile networks
+    {
+      urls: [
+        'turn:94.198.218.189:3478?transport=udp',
+        'turn:94.198.218.189:3478?transport=tcp'
+      ],
+      username: 'webrtc',
+      credential: 'pRr45XBJgdff9Z2Q4EdTLwOUyqudQjtN'
+    }
+  ];
+  
+  res.json({ iceServers });
 });
 
 const PORT = process.env.PORT || 3001;
